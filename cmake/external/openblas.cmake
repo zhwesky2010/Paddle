@@ -20,76 +20,73 @@ IF(NOT ${CBLAS_FOUND})
     SET(CBLAS_INSTALL_DIR ${THIRD_PARTY_PATH}/install/openblas)
     SET(CBLAS_INC_DIR "${CBLAS_INSTALL_DIR}/include" CACHE PATH "openblas include directory." FORCE)
 
-    SET(CBLAS_LIBRARIES
-        "${CBLAS_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
-        CACHE FILEPATH "openblas library." FORCE)
-
     ADD_DEFINITIONS(-DPADDLE_USE_OPENBLAS)
 
-    IF (WIN32)
-        SET(CBLAS_FOUND true)
-        MESSAGE(WARNING, "In windows, openblas only support msvc build, please build it manually and put it at " ${CBLAS_INSTALL_DIR})
-    ENDIF(WIN32)
-
     IF (NOT WIN32)
-    SET(OPENBLAS_CC "${CMAKE_C_COMPILER} -Wno-unused-but-set-variable -Wno-unused-variable")
-    SET(OPENBLAS_COMMIT "v0.2.20")
+        SET(CBLAS_LIBRARIES
+            "${CBLAS_INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
+            CACHE FILEPATH "openblas library." FORCE)
+        SET(OPENBLAS_CC "${CMAKE_C_COMPILER} -Wno-unused-but-set-variable -Wno-unused-variable")
+        
+        SET(OPENBLAS_REPOSITORY "https://github.com/xianyi/OpenBLAS.git")
+        SET(OPENBLAS_TAG "v0.2.20")
 
-    IF(APPLE)
-        SET(OPENBLAS_CC "${CMAKE_C_COMPILER} -isysroot ${CMAKE_OSX_SYSROOT}")
-    ENDIF()
-    SET(OPTIONAL_ARGS "")
-    IF(CMAKE_SYSTEM_PROCESSOR MATCHES "^x86(_64)?$")
-        SET(OPTIONAL_ARGS DYNAMIC_ARCH=1 NUM_THREADS=64)
-    ENDIF()
+        IF(APPLE)
+            SET(OPENBLAS_CC "${CMAKE_C_COMPILER} -isysroot ${CMAKE_OSX_SYSROOT}")
+        ENDIF()
+        SET(OPTIONAL_ARGS "")
+        IF(CMAKE_SYSTEM_PROCESSOR MATCHES "^x86(_64)?$")
+            SET(OPTIONAL_ARGS DYNAMIC_ARCH=1 NUM_THREADS=64)
+        ENDIF()
 
-    SET(COMMON_ARGS CC=${OPENBLAS_CC} NO_SHARED=1 NO_LAPACK=1 libs)
-    ExternalProject_Add(
-        extern_openblas
-        ${EXTERNAL_PROJECT_LOG_ARGS}
-        GIT_REPOSITORY      https://github.com/xianyi/OpenBLAS.git
-        GIT_TAG             ${OPENBLAS_COMMIT}
-        PREFIX              ${CBLAS_SOURCES_DIR}
-        INSTALL_DIR         ${CBLAS_INSTALL_DIR}
-        BUILD_IN_SOURCE     1
-        BUILD_COMMAND       ${CMAKE_MAKE_PROGRAM} ${COMMON_ARGS} ${OPTIONAL_ARGS}
-        INSTALL_COMMAND     ${CMAKE_MAKE_PROGRAM} install NO_SHARED=1 NO_LAPACK=1 PREFIX=<INSTALL_DIR> 
-                            && rm -r ${CBLAS_INSTALL_DIR}/lib/cmake ${CBLAS_INSTALL_DIR}/lib/pkgconfig
-        UPDATE_COMMAND      ""
-        CONFIGURE_COMMAND   ""
+        SET(COMMON_ARGS CC=${OPENBLAS_CC} NO_SHARED=1 NO_LAPACK=1 libs)
+        ExternalProject_Add(
+            extern_openblas
+            ${EXTERNAL_PROJECT_LOG_ARGS}
+            GIT_REPOSITORY      ${OPENBLAS_REPOSITORY}
+            GIT_TAG             ${OPENBLAS_TAG}
+            PREFIX              ${CBLAS_SOURCES_DIR}
+            INSTALL_DIR         ${CBLAS_INSTALL_DIR}
+            BUILD_IN_SOURCE     1
+            BUILD_COMMAND       ${CMAKE_MAKE_PROGRAM} ${COMMON_ARGS} ${OPTIONAL_ARGS}
+            INSTALL_COMMAND     ${CMAKE_MAKE_PROGRAM} install NO_SHARED=1 NO_LAPACK=1 PREFIX=<INSTALL_DIR> 
+                                && rm -r ${CBLAS_INSTALL_DIR}/lib/cmake ${CBLAS_INSTALL_DIR}/lib/pkgconfig
+            UPDATE_COMMAND      ""
+            CONFIGURE_COMMAND   ""
     )
     ELSE(NOT WIN32)
-        SET(CBLAS_FOUND false)
         SET(CBLAS_LIBRARIES
             "${CBLAS_INSTALL_DIR}/lib/openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
             CACHE FILEPATH "openblas library." FORCE)
         INCLUDE_DIRECTORIES(${CBLAS_INC_DIR}/openblas) # For openbals code to include its own headers.
         INCLUDE_DIRECTORIES(${THIRD_PARTY_PATH}/install)
+        
         ExternalProject_Add(
             extern_openblas
             ${EXTERNAL_PROJECT_LOG_ARGS}
             GIT_REPOSITORY      https://github.com/xianyi/OpenBLAS.git
-            GIT_TAG            "v0.3.7"
+            GIT_TAG             "v0.3.7"
             PREFIX              ${CBLAS_SOURCES_DIR}
             INSTALL_DIR         ${CBLAS_INSTALL_DIR}
-            BUILD_IN_SOURCE     0
+            BUILD_IN_SOURCE     1
             UPDATE_COMMAND      ""
             CMAKE_ARGS          -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-                                    -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-                                    -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
-                                    -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
-                                    -DCMAKE_INSTALL_PREFIX=${CBLAS_INSTALL_DIR}
-                                    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-                                    -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
-                                    -DBUILD_SHARED_LIBS=ON
-                                    -DMSVC_STATIC_CRT=${MSVC_STATIC_CRT}
-                                    ${EXTERNAL_OPTIONAL_ARGS}
-                CMAKE_CACHE_ARGS    -DCMAKE_INSTALL_PREFIX:PATH=${CBLAS_INSTALL_DIR}
-                                    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-                                    -DCMAKE_BUILD_TYPE:STRING=${THIRD_PARTY_BUILD_TYPE}
+                                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                                -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+                                -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+                                -DCMAKE_INSTALL_PREFIX=${CBLAS_INSTALL_DIR}
+                                -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+                                -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
+                                -DBUILD_SHARED_LIBS=ON
+                                -DMSVC_STATIC_CRT=${MSVC_STATIC_CRT}
+                                ${EXTERNAL_OPTIONAL_ARGS}
+            CMAKE_CACHE_ARGS    -DCMAKE_INSTALL_PREFIX:PATH=${CBLAS_INSTALL_DIR}
+                                -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+                                -DCMAKE_BUILD_TYPE:STRING=${THIRD_PARTY_BUILD_TYPE}
             )
         add_custom_command(TARGET extern_openblas POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CBLAS_INSTALL_DIR}/bin/openblas${CMAKE_SHARED_LIBRARY_SUFFIX}  ${CBLAS_INSTALL_DIR}/lib )
+                    COMMAND ${CMAKE_COMMAND} -E copy ${CBLAS_INSTALL_DIR}/bin/openblas${CMAKE_SHARED_LIBRARY_SUFFIX}  ${CBLAS_INSTALL_DIR}/lib)
+
         ADD_LIBRARY(openblas STATIC IMPORTED GLOBAL)
         SET_PROPERTY(TARGET openblas PROPERTY IMPORTED_LOCATION ${CBLAS_LIBRARIES})
         ADD_DEPENDENCIES(openblas extern_openblas)

@@ -17,17 +17,25 @@ if(NOT WITH_PYTHON)
 endif()
 
 include(ExternalProject)
+set(PYBIND_REPOSITORY "https://github.com/pybind/pybind11.git")
+set(PYBIND_TAG  "v2.2.4")
 
-set(PYBIND_SOURCE_DIR ${THIRD_PARTY_PATH}/pybind)
+set(PYBIND_SOURCES_DIR ${THIRD_PARTY_PATH}/pybind)
 
-include_directories(${PYBIND_SOURCE_DIR}/src/extern_pybind/include)
+cache_third_party(extern_pybind
+    REPOSITORY ${PYBIND_REPOSITORY}
+    TAG        ${PYBIND_TAG}
+    DIR        ${PYBIND_SOURCES_DIR})
+
+set(PYBIND_INCLUDE_DIR ${SOURCE_DIR}/include CACHE PATH "pybind include directory." FORCE)
+INCLUDE_DIRECTORIES(${PYBIND_INCLUDE_DIR})
 
 ExternalProject_Add(
         extern_pybind
         ${EXTERNAL_PROJECT_LOG_ARGS}
-        GIT_REPOSITORY  "https://github.com/pybind/pybind11.git"
-        GIT_TAG         "v2.2.4"
-        PREFIX          ${PYBIND_SOURCE_DIR}
+        PREFIX          ${PYBIND_SOURCES_DIR}
+        SOURCE_DIR      ${SOURCE_DIR}
+        DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
         UPDATE_COMMAND  ""
         CONFIGURE_COMMAND ""
         BUILD_COMMAND     ""

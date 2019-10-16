@@ -51,7 +51,7 @@ function(copy TARGET)
 endfunction()
 
 # third party
-set(third_party_deps eigen3 gflags glog boost xxhash zlib dlpack)
+set(third_party_deps eigen3 gflags glog boost xxhash zlib dlpack warpctc simple_threadpool)
 if(NOT PROTOBUF_FOUND OR WIN32)
     list(APPEND third_party_deps extern_protobuf)
 endif ()
@@ -64,6 +64,10 @@ endif ()
 
 if (WITH_MKLDNN)
     list(APPEND third_party_deps mkldnn_shared_lib)
+endif ()
+
+if (WITH_PYTHON)
+    list(APPEND third_party_deps pybind)
 endif ()
 
 if (WITH_NGRAPH)

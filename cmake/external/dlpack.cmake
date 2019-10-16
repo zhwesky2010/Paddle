@@ -1,16 +1,23 @@
 include(ExternalProject)
 
-set(DLPACK_SOURCE_DIR ${THIRD_PARTY_PATH}/dlpack)
-set(DLPACK_INCLUDE_DIR ${DLPACK_SOURCE_DIR}/src/extern_dlpack/include)
+SET(DLPACK_REPOSITORY "https://github.com/dmlc/dlpack.git")
+SET(DLPACK_TAG    "v0.2")
+set(DLPACK_SOURCES_DIR ${THIRD_PARTY_PATH}/dlpack)
 
-include_directories(${DLPACK_INCLUDE_DIR})
+cache_third_party(extern_dlpack
+  REPOSITORY ${DLPACK_REPOSITORY}
+  TAG        ${DLPACK_TAG}
+  DIR        ${DLPACK_SOURCES_DIR})
+
+set(DLPACK_INCLUDE_DIR ${SOURCE_DIR}/include CACHE PATH "dlpack include directory." FORCE)
+INCLUDE_DIRECTORIES(${DLPACK_INCLUDE_DIR})
 
 ExternalProject_Add(
   extern_dlpack
   ${EXTERNAL_PROJECT_LOG_ARGS}
-  GIT_REPOSITORY "https://github.com/dmlc/dlpack.git"
-  GIT_TAG        "v0.2"
-  PREFIX         ${DLPACK_SOURCE_DIR}
+  PREFIX          ${DLPACK_SOURCES_DIR}
+  SOURCE_DIR      ${SOURCE_DIR}
+  DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
   UPDATE_COMMAND ""
   CONFIGURE_COMMAND ""
   BUILD_COMMAND     ""

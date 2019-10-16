@@ -13,6 +13,8 @@
 # limitations under the License.
 
 INCLUDE(ExternalProject)
+SET(GFLAGS_REPOSITORY "https://github.com/gflags/gflags.git")
+SET(GFLAGS_TAG "77592648e3f3be87d6c7123eb81cbad75f9aef5a")
 
 SET(GFLAGS_SOURCES_DIR ${THIRD_PARTY_PATH}/gflags)
 SET(GFLAGS_INSTALL_DIR ${THIRD_PARTY_PATH}/install/gflags)
@@ -27,12 +29,17 @@ ENDIF(WIN32)
 
 INCLUDE_DIRECTORIES(${GFLAGS_INCLUDE_DIR})
 
+cache_third_party(extern_gflags
+    REPOSITORY ${GFLAGS_REPOSITORY}
+    TAG        ${GFLAGS_TAG}
+    DIR        ${GFLAGS_SOURCES_DIR})
+    
 ExternalProject_Add(
     extern_gflags
     ${EXTERNAL_PROJECT_LOG_ARGS}
-    GIT_REPOSITORY  "https://github.com/gflags/gflags.git"
-    GIT_TAG         77592648e3f3be87d6c7123eb81cbad75f9aef5a
     PREFIX          ${GFLAGS_SOURCES_DIR}
+    SOURCE_DIR      ${SOURCE_DIR}
+    DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
     BUILD_COMMAND   ${BUILD_COMMAND}
     INSTALL_COMMAND ${INSTALL_COMMAND}
     UPDATE_COMMAND  ""

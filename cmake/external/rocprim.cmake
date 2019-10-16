@@ -12,15 +12,22 @@ endif()
 
 INCLUDE(ExternalProject)
 
-SET(ROCPRIM_SOURCE_DIR ${THIRD_PARTY_PATH}/rocprim)
+SET(ROCPRIM_REPOSITORY "https://github.com/ROCmSoftwarePlatform/rocPRIM.git")
+SET(ROCPRIM_TAG    "5bd41b96ab8d8343330fb2c3e1b96775bde3b3fc")
+SET(ROCPRIM_SOURCES_DIR ${THIRD_PARTY_PATH}/rocprim)
 SET(ROCPRIM_INSTALL_DIR  ${THIRD_PARTY_PATH}/install/rocprim)
 SET(ROCPRIM_INCLUDE_DIR ${ROCPRIM_INSTALL_DIR}/include)
 
+cache_third_party(extern_rocprim
+    REPOSITORY ${ROCPRIM_REPOSITORY}
+    TAG        ${ROCPRIM_TAG}
+    DIR        ${ROCPRIM_SOURCES_DIR})
+
 ExternalProject_Add(
     extern_rocprim
-    GIT_REPOSITORY "https://github.com/ROCmSoftwarePlatform/rocPRIM.git"
-    GIT_TAG        5bd41b96ab8d8343330fb2c3e1b96775bde3b3fc 
-    PREFIX         ${ROCPRIM_SOURCE_DIR}
+    PREFIX          ${ROCPRIM_SOURCES_DIR}
+    SOURCE_DIR      ${SOURCE_DIR}
+    DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
     UPDATE_COMMAND  ""
     CMAKE_ARGS     -DCMAKE_CXX_COMPILER=${HCC_HOME}/bin/hcc
     CMAKE_ARGS     -DONLY_INSTALL=ON

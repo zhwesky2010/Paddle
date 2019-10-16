@@ -142,7 +142,6 @@ IF (WIN32)
 ENDIF(WIN32)
 
 if (NOT "${PROTOBUF_ROOT}" STREQUAL "")
-
     find_path(PROTOBUF_INCLUDE_DIR google/protobuf/message.h PATHS ${PROTOBUF_ROOT}/include NO_DEFAULT_PATH)
     find_library(PROTOBUF_LIBRARY protobuf libprotobuf.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
     find_library(PROTOBUF_LITE_LIBRARY protobuf-lite libprotobuf-lite.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
@@ -160,7 +159,7 @@ endif()
 
 FUNCTION(build_protobuf TARGET_NAME BUILD_FOR_HOST)
     STRING(REPLACE "extern_" "" TARGET_DIR_NAME "${TARGET_NAME}")
-    SET(PROTOBUF_SOURCES_DIR ${THIRD_PARTY_PATH}/${TARGET_DIR_NAME})
+    SET(PROTOBUF_SOURCES_DIR ${THIRD_PARTY_PATH}/${TARGET_NAME})
     SET(PROTOBUF_INSTALL_DIR ${THIRD_PARTY_PATH}/install/${TARGET_DIR_NAME})
 
     SET(${TARGET_NAME}_INCLUDE_DIR "${PROTOBUF_INSTALL_DIR}/include" PARENT_SCOPE)
@@ -201,19 +200,26 @@ FUNCTION(build_protobuf TARGET_NAME BUILD_FOR_HOST)
         SET(OPTIONAL_ARGS ${OPTIONAL_ARGS} "-DCMAKE_GENERATOR_PLATFORM=x64")
     ENDIF()
 
-    SET(PROTOBUF_REPO "https://github.com/protocolbuffers/protobuf.git")
+    SET(PROTOBUF_REPOSITORY "https://github.com/protocolbuffers/protobuf.git")
     SET(PROTOBUF_TAG "9f75c5aa851cd877fb0d93ccc31b8567a6706546")
+
+    cache_third_party(${TARGET_NAME}
+        REPOSITORY ${PROTOBUF_REPOSITORY}
+        TAG        ${PROTOBUF_TAG}
+        DIR        ${PROTOBUF_SOURCES_DIR})
+
+    message("extern_PROTOBUF ${SOURCE_DIR} ${DOWNLOAD_CMD}")
 
     ExternalProject_Add(
         ${TARGET_NAME}
         ${EXTERNAL_PROJECT_LOG_ARGS}
-        PREFIX          ${PROTOBUF_SOURCES_DIR}
-        UPDATE_COMMAND  ""
         DEPENDS         zlib
-        GIT_REPOSITORY  ${PROTOBUF_REPO}
-        GIT_TAG         ${PROTOBUF_TAG}
+        PREFIX          ${PROTOBUF_SOURCES_DIR}
+        SOURCE_DIR      ${SOURCE_DIR}
+        DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
+        UPDATE_COMMAND  ""
         CONFIGURE_COMMAND
-        ${CMAKE_COMMAND} ${PROTOBUF_SOURCES_DIR}/src/${TARGET_NAME}/cmake
+        ${CMAKE_COMMAND} ${SOURCE_DIR}/cmake
             ${OPTIONAL_ARGS}
             -Dprotobuf_BUILD_TESTS=OFF
             -DCMAKE_SKIP_RPATH=ON

@@ -22,12 +22,18 @@ IF(WITH_TESTING OR (WITH_DISTRIBUTE AND NOT WITH_GRPC))
     ENDIF(WITH_TESTING)
 
     INCLUDE(ExternalProject)
+    SET(GTEST_REPOSITORY "https://github.com/google/googletest.git")
+    SET(GTEST_TAG "release-1.8.1")
 
     SET(GTEST_SOURCES_DIR ${THIRD_PARTY_PATH}/gtest)
     SET(GTEST_INSTALL_DIR ${THIRD_PARTY_PATH}/install/gtest)
     SET(GTEST_INCLUDE_DIR "${GTEST_INSTALL_DIR}/include" CACHE PATH "gtest include directory." FORCE)
-
     INCLUDE_DIRECTORIES(${GTEST_INCLUDE_DIR})
+
+    cache_third_party(extern_gtest
+        REPOSITORY ${GTEST_REPOSITORY}
+        TAG        ${GTEST_TAG}
+        DIR        ${GTEST_SOURCES_DIR})
 
     IF(WIN32)
         set(GTEST_LIBRARIES
@@ -50,9 +56,9 @@ IF(WITH_TESTING OR (WITH_DISTRIBUTE AND NOT WITH_GRPC))
         extern_gtest
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS         ${GTEST_DEPENDS}
-        GIT_REPOSITORY  "https://github.com/google/googletest.git"
-        GIT_TAG         "release-1.8.1"
         PREFIX          ${GTEST_SOURCES_DIR}
+        SOURCE_DIR      ${SOURCE_DIR}
+        DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
         UPDATE_COMMAND  ""
         CMAKE_ARGS      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                         -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}

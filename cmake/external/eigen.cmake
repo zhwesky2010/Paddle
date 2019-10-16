@@ -1,23 +1,36 @@
 INCLUDE(ExternalProject)
 
-SET(EIGEN_SOURCE_DIR ${THIRD_PARTY_PATH}/eigen3)
-SET(EIGEN_INCLUDE_DIR ${EIGEN_SOURCE_DIR}/src/extern_eigen3)
-INCLUDE_DIRECTORIES(${EIGEN_INCLUDE_DIR})
+SET(EIGEN_SOURCES_DIR ${THIRD_PARTY_PATH}/eigen3)
+
 
 if(WIN32)
-    set(EIGEN_GIT_REPOSITORY https://github.com/wopeizl/eigen-git-mirror)
-    set(EIGEN_GIT_TAG support_cuda9_win)
+    set(EIGEN_REPOSITORY "https://github.com/wopeizl/eigen-git-mirror")
+    set(EIGEN_TAG  "support_cuda9_win")
 else()
-    set(EIGEN_GIT_REPOSITORY https://github.com/eigenteam/eigen-git-mirror)
-    set(EIGEN_GIT_TAG 917060c364181f33a735dc023818d5a54f60e54c)
+    set(EIGEN_REPOSITORY "https://github.com/eigenteam/eigen-git-mirror")
+    set(EIGEN_TAG  "917060c364181f33a735dc023818d5a54f60e54c")
 endif()
+
+if(WITH_AMD_GPU)
+    set(EIGEN_REPOSITORY "https://github.com/sabreshao/hipeigen.git")
+    set(EIGEN_TAG  "7cb2b6e5a4b4a1efe658abb215cd866c6fb2275e") 
+endif(WITH_AMD_GPU)
+
+cache_third_party(extern_eigen3
+    REPOSITORY ${EIGEN_REPOSITORY}
+    TAG        ${EIGEN_TAG}
+    DIR        ${EIGEN_SOURCES_DIR})
+
+SET(EIGEN_INCLUDE_DIR ${SOURCE_DIR} CACHE PATH "eigen include directory." FORCE)
+INCLUDE_DIRECTORIES(${EIGEN_INCLUDE_DIR})
+
 if(WITH_AMD_GPU)
     ExternalProject_Add(
         extern_eigen3
         ${EXTERNAL_PROJECT_LOG_ARGS}
-        GIT_REPOSITORY  "https://github.com/sabreshao/hipeigen.git"
-        GIT_TAG         7cb2b6e5a4b4a1efe658abb215cd866c6fb2275e
-        PREFIX          ${EIGEN_SOURCE_DIR}
+        PREFIX          ${EIGEN_SOURCES_DIR}
+        SOURCE_DIR      ${SOURCE_DIR}
+        DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
         UPDATE_COMMAND  ""
         CONFIGURE_COMMAND ""
         BUILD_COMMAND     ""
@@ -28,11 +41,11 @@ else()
     ExternalProject_Add(
         extern_eigen3
         ${EXTERNAL_PROJECT_LOG_ARGS}
-        GIT_REPOSITORY  "${EIGEN_GIT_REPOSITORY}"
+        PREFIX          ${EIGEN_SOURCES_DIR}
+        SOURCE_DIR      ${SOURCE_DIR}
         # eigen on cuda9.1 missing header of math_funtions.hpp
         # https://stackoverflow.com/questions/43113508/math-functions-hpp-not-found-when-using-cuda-with-eigen
-        GIT_TAG         ${EIGEN_GIT_TAG}
-        PREFIX          ${EIGEN_SOURCE_DIR}
+        DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
         DOWNLOAD_NAME   "eigen"
         UPDATE_COMMAND  ""
         CONFIGURE_COMMAND ""

@@ -35,11 +35,17 @@ ELSE()
     SET(WARPCTC_REPOSITORY "https://github.com/dzhwinter/warp-ctc.git")
 ENDIF()
 
+cache_third_party(extern_warpctc
+  REPOSITORY ${WARPCTC_REPOSITORY}
+  TAG        "master"
+  DIR        ${WARPCTC_SOURCES_DIR})
+
 ExternalProject_Add(
     extern_warpctc
     ${EXTERNAL_PROJECT_LOG_ARGS}
-    GIT_REPOSITORY ${WARPCTC_REPOSITORY}
     PREFIX          ${WARPCTC_SOURCES_DIR}
+    SOURCE_DIR      ${SOURCE_DIR}
+    DOWNLOAD_COMMAND ${DOWNLOAD_CMD}
     UPDATE_COMMAND  ""
     CMAKE_ARGS      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                     -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}

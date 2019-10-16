@@ -13,6 +13,8 @@
 # limitations under the License.
 
 INCLUDE(ExternalProject)
+SET(GLOG_REPOSITORY "https://github.com/google/glog.git")
+SET(GLOG_TAG "v0.3.5")
 
 SET(GLOG_SOURCES_DIR ${THIRD_PARTY_PATH}/glog)
 SET(GLOG_INSTALL_DIR ${THIRD_PARTY_PATH}/install/glog)
@@ -28,16 +30,18 @@ ENDIF(WIN32)
 
 INCLUDE_DIRECTORIES(${GLOG_INCLUDE_DIR})
 
-SET(GLOG_REPOSITORY "https://github.com/google/glog.git")
-SET(GLOG_TAG "v0.3.5")
+cache_third_party(extern_glog
+    REPOSITORY ${GLOG_REPOSITORY}
+    TAG        ${GLOG_TAG}
+    DIR        ${GLOG_SOURCES_DIR})
 
 ExternalProject_Add(
     extern_glog
     ${EXTERNAL_PROJECT_LOG_ARGS}
     DEPENDS gflags
-    GIT_REPOSITORY  ${GLOG_REPOSITORY}
-    GIT_TAG         ${GLOG_TAG}
     PREFIX          ${GLOG_SOURCES_DIR}
+    SOURCE_DIR      ${SOURCE_DIR}
+    DOWNLOAD_COMMAND  ${DOWNLOAD_CMD}
     UPDATE_COMMAND  ""
     CMAKE_ARGS      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                     -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
