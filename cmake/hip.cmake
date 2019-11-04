@@ -11,7 +11,11 @@ include_directories("/opt/rocm/rocrand/include")
 include_directories("/opt/rocm/rccl/include")
 include_directories("/opt/rocm/thrust")
 
-set(HIP_HCC_FLAGS "${HIP_HCC_FLAGS} -fPIC -DPADDLE_WITH_HIP -std=c++11" )
+if(NOT WIN32)
+  # -std=c++11 -fPIC not recoginize by msvc.
+  set(HIP_HCC_FLAGS "${HIP_HCC_FLAGS} -fPIC -DPADDLE_WITH_HIP -std=c++11" )
+endif(NOT WIN32)
+
 
 if(WITH_DSO)
   set(HIP_HCC_FLAGS "${HIP_HCC_FLAGS} -DPADDLE_USE_DSO")

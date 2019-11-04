@@ -182,8 +182,8 @@ set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 # So, don't set these flags here.
 if (NOT WIN32) # windows msvc2015 support c++11 natively. 
 # -std=c++11 -fPIC not recoginize by msvc, -Xcompiler will be added by cmake.
-list(APPEND CUDA_NVCC_FLAGS "-std=c++11")
-list(APPEND CUDA_NVCC_FLAGS "-Xcompiler -fPIC")
+  list(APPEND CUDA_NVCC_FLAGS "-std=c++11")
+  list(APPEND CUDA_NVCC_FLAGS "-Xcompiler -fPIC")
 endif(NOT WIN32)
 
 # in cuda9, suppress cuda warning on eigen 

@@ -78,7 +78,7 @@ include(external/warpctc)   # download, build, install warpctc
 include(external/rocprim)   # download, build, install rocprim
 include(external/xbyak)     # download, build, install xbyak
 
-set(third_party_deps eigen3 gflags glog boost xxhash zlib dlpack warpctc simple_threadpool)
+set(third_party_deps extern_eigen3 extern_gflags extern_glog extern_boost extern_xxhash extern_zlib extern_dlpack extern_warpctc extern_threadpool)
 
 if(WITH_AMD_GPU)
     list(APPEND third_party_deps rocprim)
@@ -86,7 +86,7 @@ endif()
 
 if(WITH_MKLML)
     include(external/mklml)     # download, install mklml package
-    list(APPEND third_party_deps mklml)
+    list(APPEND third_party_deps extern_mklml)
 endif()
 include(external/openblas)      # find first, then download, build, install openblas
 if(NOT CBLAS_FOUND)
@@ -95,7 +95,7 @@ endif()
 
 if(WITH_MKLDNN)
     include(external/mkldnn)    # download, build, install mkldnn
-    list(APPEND third_party_deps mkldnn_shared_lib)
+    list(APPEND third_party_deps extern_mkldnn)
 endif()
 
 include(external/protobuf)  # find first, then download, build, install protobuf
@@ -116,7 +116,7 @@ ENDIF()
 
 if(WITH_GPU)
     include(external/cub)       # download cub
-    list(APPEND third_party_deps cub)
+    list(APPEND third_party_deps extern_cub)
 endif(WITH_GPU)
 
 if(WITH_PSLIB)

@@ -163,7 +163,7 @@ if(WITH_PROFILER)
 endif()
 
 include(generic)            # simplify cmake module
-include(ccache)             # set ccache for compilation
+#include(ccache)             # set ccache for compilation
 include(util)               # set unittest and link libs
 include(version)            # set PADDLE_VERSION
 include(coveralls)          # set code coverage
