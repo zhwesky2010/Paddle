@@ -30,7 +30,9 @@ endif(WIN32)
 
 # paddle_fluid_origin exclude inference api interface
 if(WIN32)
-  sep_library(paddle_fluid_origin DEPS ${fluid_modules} paddle_fluid_api)
+  cc_library(paddle_fluid_origin DEPS ${fluid_modules} paddle_fluid_api)
+  #add_custom_target(paddle_fluid_origin ALL)
+  #add_dependencies(paddle_fluid_origin ${fluid_modules} paddle_fluid_api)
 else(WIN32)
   cc_library(paddle_fluid_origin DEPS ${fluid_modules} paddle_fluid_api)
 endif(WIN32)
@@ -55,8 +57,9 @@ set(SHARED_INFERENCE_SRCS
     ${ANAKIN_SHARED_INFERENCE_SRCS})
 
 if(WIN32)
-  sep_library(paddle_fluid DEPS ${fluid_modules} ${STATIC_INFERENCE_APIS} zero_copy_tensor reset_tensor_array
-              analysis_config ${mkldnn_quantizer_cfg} paddle_pass_builder)
+  message("no paddle_fluid")
+  #sep_library(paddle_fluid DEPS ${fluid_modules} ${STATIC_INFERENCE_APIS} zero_copy_tensor reset_tensor_array
+  #            analysis_config ${mkldnn_quantizer_cfg} paddle_pass_builder)
 else(WIN32)
   cc_library(paddle_fluid DEPS ${fluid_modules} ${STATIC_INFERENCE_APIS}
              zero_copy_tensor reset_tensor_array analysis_config ${mkldnn_quantizer_cfg} paddle_pass_builder)
@@ -65,12 +68,12 @@ endif(WIN32)
 if(NOT APPLE)
   # TODO(liuyiqu: Temporarily disable the link flag because it is not support on Mac.
   set(LINK_FLAGS "-Wl,--retain-symbols-file ${CMAKE_CURRENT_SOURCE_DIR}/paddle_fluid.sym")
-  set_target_properties(paddle_fluid PROPERTIES LINK_FLAGS "${LINK_FLAGS}")
+  #set_target_properties(paddle_fluid PROPERTIES LINK_FLAGS "${LINK_FLAGS}")
 endif()
 
 # Create shared library
 if(WIN32)
-  sep_library(paddle_fluid_shared SHARED SRCS ${SHARED_INFERENCE_SRCS}
+  cc_library(paddle_fluid_shared SHARED SRCS ${SHARED_INFERENCE_SRCS}
               DEPS ${fluid_modules} paddle_fluid_api reset_tensor_array
                    analysis_config ${mkldnn_quantizer_cfg} paddle_pass_builder)
 else(WIN32)
