@@ -31,9 +31,15 @@ __all__ = [
 @dygraph_only
 def save_dygraph(state_dict, model_path):
     '''
-    Save Layer's state_dict to disk. This will generate a file with suffix ".pdparams"
-    
-    The state_dict is get from Layers.state_dict function
+    This API saves the input parameters or optimizer's `dict` to disk.
+
+    The `state_dict` is get from Layers.state_dict() function.
+
+    Note: `model_path` cannot be a directory.
+
+    This API will automatically add `.pdparams` or `.pdopt` suffixes to the 
+    `model_path` according to the content of the `state_dict`, and generate 
+    the ``model_path + ".pdparms"`` or ``model_path + ".pdopt"`` files.
     
     Args:
         state_dict(dict) : The state dict to be saved.
@@ -48,16 +54,18 @@ def save_dygraph(state_dict, model_path):
             import paddle.fluid as fluid
 
             with fluid.dygraph.guard():
-                emb = fluid.dygraph.Embedding([10, 10])
-
+                emb = fluid.dygraph.Embedding(
+                    size=[10, 32],
+                    param_attr='emb.w',
+                    is_sparse=False)
                 state_dict = emb.state_dict()
-                fluid.save_dygraph( state_dict, "paddle_dy")
+                fluid.save_dygraph(state_dict, "paddle_dy") # Save 'emb' as paddle_dy.pdparams
 
-                adam = fluid.optimizer.Adam( learning_rate = fluid.layers.noam_decay( 100, 10000),
-                                             parameter_list = emb.parameters() )
-
+                adam = fluid.optimizer.Adam(
+                    learning_rate=fluid.layers.noam_decay( 100, 10000),
+                    parameter_list = emb.parameters())
                 state_dict = adam.state_dict()
-                fluid.save_dygraph( state_dict, "paddle_dy")
+                fluid.save_dygraph(state_dict, "paddle_dy")  # Save 'adam' as paddle_dy.pdopt
 
     '''
 
