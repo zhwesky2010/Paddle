@@ -43,6 +43,11 @@ limitations under the License. */
 #include "paddle/fluid/platform/port.h"
 #include "paddle/fluid/string/printf.h"
 #include "paddle/fluid/string/to_string.h"
+#include "paddle/fluid/platform/cuda_error.pb.h"
+#include "paddle/fluid/platform/enforce.h"
+
+#include "unistd.h"
+#include <stdlib.h>
 
 #ifdef PADDLE_WITH_CUDA
 #include "paddle/fluid/platform/dynload/cublas.h"
@@ -464,8 +469,72 @@ struct EOFException : public std::exception {
   } while (0)
 
 /** CUDA PADDLE ENFORCE FUNCTIONS AND MACROS **/
+#if 1
+#if 0
+inline std::string GetCudaErrorWebsite(int32_t cuda_version) {
+  switch (cuda_version) {
+    case 100:
+      return "https://docs.nvidia.com/cuda/archive/10.0/cuda-runtime-api/"
+             "group__CUDART__TYPES.html"
+             "#group__CUDART__TYPES_1g3f51e3575c2178246db0a94a430e0038";
+      break;
+    case 90:
+      return "https://docs.nvidia.com/cuda/archive/9.0/cuda-runtime-api/"
+             "group__CUDART__TYPES.html#group__CUDART__TYPES_"
+             "1g3f51e3575c2178246db0a94a430e0038";
+      break;
+    default:
+      return "https://docs.nvidia.com/cuda/cuda-runtime-api/"
+             "group__CUDART__TYPES.html"
+             "#group__CUDART__TYPES_1g3f51e3575c2178246db0a94a430e0038";
+      break;
+  }
+}
 
-#ifdef PADDLE_WITH_CUDA
+inline std::string GetCudaErrorMessage(cudaError_t e) {
+#if CUDA_VERSION >= 12000
+  int32_t cuda_version = 120;
+#elif CUDA_VERSION >= 11000
+  int32_t cuda_version = 110;
+#elif CUDA_VERSION >= 10000
+  int32_t cuda_version = 100;
+#elif CUDA_VERSION >= 9000
+  int32_t cuda_version = 90;
+#else
+  int32_t cuda_version = -1;
+#endif
+  std::ostringstream sout;
+  sout << "cuda runtime error ("<< e << "): "<< cudaGetErrorString(e);
+  static platform::proto::cudaerrorDesc cudaerror;
+  static bool _initSucceed = false;
+  if(!cudaerror.IsInitialized()) {
+    char path1[100];
+    char path2[100];
+    auto size = readlink("/proc/self/exe", path1, 100);
+    auto size2 = getcwd(path2, 100);
+    //auto size3 = realpath("./", path3);
+    std::cout << size <<size2  <<path1 << path2  << std::endl;
+    std::ifstream fin("cudaErrorMessage.pb", std::ios::in | std::ios::binary);
+    _initSucceed = cudaerror.ParseFromIstream(&fin);
+  }
+  if(_initSucceed) {
+    for (int i = 0; i < cudaerror.allmessages_size(); ++i) {
+      if (cuda_version == cudaerror.allmessages(i).version()) {
+        for (int j = 0; j < cudaerror.allmessages(i).messages_size(); ++j) {
+          if (e == cudaerror.allmessages(i).messages(j).errorcode()) {
+            sout << "\nRecommended Solutions:" << cudaerror.allmessages(i).messages(j).errormessage()
+                 << ". This error occurred ";
+            return sout.str();
+          }
+        }
+      }
+    }
+  }
+  sout << "\nRecommended Solutions: Please search for the error code[" << e
+       << "] on website[" << GetCudaErrorWebsite(cuda_version) << "] to get Nvidia's official solution about CUDA Error. This error occurred ";
+  return sout.str();
+}
+#endif
 
 inline bool is_error(cudaError_t e) { return e != cudaSuccess; }
 
@@ -475,7 +544,8 @@ inline std::string build_ex_string(cudaError_t e, const std::string& msg) {
 
 inline void throw_on_error(cudaError_t e, const std::string& msg) {
 #ifndef REPLACE_ENFORCE_GLOG
-  throw thrust::system_error(e, thrust::cuda_category(), msg);
+  throw std::runtime_error(msg);
+  //throw thrust::system_error(e, thrust::cuda_category(), msg);
 #else
   LOG(FATAL) << msg;
 #endif

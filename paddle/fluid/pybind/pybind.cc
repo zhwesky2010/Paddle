@@ -1239,6 +1239,11 @@ All parameter, weight, gradient are variables in Paddle.
       .def("__init__",
            [](platform::CUDAPlace &self, int dev_id) {
 #ifdef PADDLE_WITH_CUDA
+              
+             int count;
+             std::cout << paddle::platform::GetCudaErrorMessage(cudaGetDeviceCount(&count)) << std::endl;
+             PADDLE_ENFORCE_CUDA_SUCCESS(cudaGetDeviceCount(&count),
+                platform::errors::External("cudaGetDeviceCount failed"));
              if (UNLIKELY(dev_id < 0)) {
                LOG(ERROR) << string::Sprintf(
                    "Invalid CUDAPlace(%d), device id must be 0 or "

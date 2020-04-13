@@ -249,6 +249,11 @@ copy(inference_lib_dist
         SRCS ${ZLIB_INCLUDE_DIR} ${ZLIB_LIBRARIES}
         DSTS ${dst_dir} ${dst_dir}/lib)
 
+set(dst_dir "${FLUID_INSTALL_DIR}/third_party/cudaerror/data")
+copy(inference_lib_dist
+        SRCS ${cudaerror_INCLUDE_DIR}
+        DSTS ${dst_dir})
+
 # CMakeCache Info
 copy(fluid_lib_dist
         SRCS ${FLUID_INFERENCE_INSTALL_DIR}/third_party ${CMAKE_CURRENT_BINARY_DIR}/CMakeCache.txt
