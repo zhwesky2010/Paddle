@@ -43,6 +43,11 @@ limitations under the License. */
 #include "paddle/fluid/platform/port.h"
 #include "paddle/fluid/string/printf.h"
 #include "paddle/fluid/string/to_string.h"
+#include "paddle/fluid/platform/cuda_error.pb.h"
+#include "paddle/fluid/platform/enforce.h"
+
+#include "unistd.h"
+#include <stdlib.h>
 
 #ifdef PADDLE_WITH_CUDA
 #include "paddle/fluid/platform/dynload/cublas.h"
@@ -51,6 +56,11 @@ limitations under the License. */
 #if !defined(__APPLE__) && defined(PADDLE_WITH_NCCL)
 #include "paddle/fluid/platform/dynload/nccl.h"
 #endif  // __APPLE__
+#if defined(_WIN32)
+# include <windows.h>
+#else
+# include <dlfcn.h>
+#endif // _WIN32
 #endif  // PADDLE_WITH_CUDA
 
 namespace paddle {
@@ -464,18 +474,115 @@ struct EOFException : public std::exception {
   } while (0)
 
 /** CUDA PADDLE ENFORCE FUNCTIONS AND MACROS **/
+#if PADDLE_WITH_CUDA
 
-#ifdef PADDLE_WITH_CUDA
+inline std::string GetCudaErrorWebsite(int32_t cuda_version) {
+  switch (cuda_version) {
+    case 100:
+      return "https://docs.nvidia.com/cuda/archive/10.0/cuda-runtime-api/"
+             "group__CUDART__TYPES.html"
+             "#group__CUDART__TYPES_1g3f51e3575c2178246db0a94a430e0038";
+      break;
+    case 90:
+      return "https://docs.nvidia.com/cuda/archive/9.0/cuda-runtime-api/"
+             "group__CUDART__TYPES.html#group__CUDART__TYPES_"
+             "1g3f51e3575c2178246db0a94a430e0038";
+      break;
+    default:
+      return "https://docs.nvidia.com/cuda/cuda-runtime-api/"
+             "group__CUDART__TYPES.html"
+             "#group__CUDART__TYPES_1g3f51e3575c2178246db0a94a430e0038";
+      break;
+  }
+}
+
+inline std::string GetCudaErrorMessage(cudaError_t e) {
+#if CUDA_VERSION >= 12000
+  int32_t cuda_version = 120;
+#elif CUDA_VERSION >= 11000
+  int32_t cuda_version = 110;
+#elif CUDA_VERSION >= 10000
+  int32_t cuda_version = 100;
+#elif CUDA_VERSION >= 9000
+  int32_t cuda_version = 90;
+#else
+  int32_t cuda_version = -1;
+#endif
+  std::cout << "=======" << CUDA_VERSION << std::endl;
+  std::ostringstream sout;
+  sout << " CUDA runtime error("<< e << "): "<< cudaGetErrorString(e) << ".";
+  static platform::proto::cudaerrorDesc cudaerror;
+  static bool _initSucceed = false;
+  if (cudaerror.ByteSizeLong() == 0) {
+    std::string filePath;
+#if defined(_WIN32)
+    std::string strModule;
+    GetModuleFileName(NULL, strModule.c_str(), 64);
+    const size_t last_slash_idx = strModule.find_last_of("\\");
+    std::string compare_path = strModule.substr(strModule.length() - 7);
+    if (std::string::npos != last_slash_idx) {
+      strModule.erase(last_slash_idx, std::string::npos);
+    }
+    if (compare_path.compare("avx.pyd") == 0) {
+      filePath = strModule + "\\..\\include\\third_party\\cudaerror\\data\\cudaErrorMessage.pb";
+    }
+    else {
+      filePath = strModule + "\\..\\..\\third_party\\cudaerror\\data\\cudaErrorMessage.pb";
+    }
+#else
+    Dl_info info;
+    if (dladdr((void*)GetCudaErrorMessage, &info)) {
+      std::string strModule(info.dli_fname);
+      std::cout << "=======" << filePath << std::endl;
+      const size_t last_slash_idx = strModule.find_last_of("/");
+      std::string compare_path = strModule.substr(strModule.length() - 6);
+      if (std::string::npos != last_slash_idx) {
+        strModule.erase(last_slash_idx, std::string::npos);
+      }
+      if (compare_path.compare("avx.so") == 0) {
+        filePath = strModule + "/../include/third_party/cudaerror/data/cudaErrorMessage.pb";
+      }
+      else {
+        filePath = strModule + "/../../thirl_party/cudaerror/data/cudaErrorMessage.pb";
+      }
+    }
+#endif
+    std::cout << "=======" << filePath << std::endl;
+    std::ifstream fin(filePath, std::ios::in | std::ios::binary);
+    _initSucceed = cudaerror.ParseFromIstream(&fin);
+  }
+  if (_initSucceed) {
+    for (int i = 0; i < cudaerror.allmessages_size(); ++i) {
+      if (cuda_version == cudaerror.allmessages(i).version()) {
+        for (int j = 0; j < cudaerror.allmessages(i).messages_size(); ++j) {
+          if (e == cudaerror.allmessages(i).messages(j).errorcode()) {
+            sout << "\n\nRecommended Solution: " << cudaerror.allmessages(i).messages(j).errormessage()
+                 << " ";
+            return sout.str();
+          }
+        }
+      }
+    }
+  }
+  sout << "\n\nRecommended Solution: Please search for the error code[" << e
+       << "] on website[" << GetCudaErrorWebsite(cuda_version) << "] to get Nvidia's official solution about CUDA Error. ";
+  return sout.str();
+}
 
 inline bool is_error(cudaError_t e) { return e != cudaSuccess; }
 
 inline std::string build_ex_string(cudaError_t e, const std::string& msg) {
-  return msg;
+  // note(zhouwei): default message when input no error message by developer, it is not needed.
+  // better method is to refactor class ErrorSummary or PADDLE_ENFORCE_CUDA_SUCCESS
+  if (msg.find("An error occurred here") != std::string::npos){
+    return platform::errors::External(GetCudaErrorMessage(e)).ToString();
+  }
+  return msg + GetCudaErrorMessage(e);
 }
 
 inline void throw_on_error(cudaError_t e, const std::string& msg) {
 #ifndef REPLACE_ENFORCE_GLOG
-  throw thrust::system_error(e, thrust::cuda_category(), msg);
+  throw std::runtime_error(msg);
 #else
   LOG(FATAL) << msg;
 #endif

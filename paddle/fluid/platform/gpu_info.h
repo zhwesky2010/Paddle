@@ -24,6 +24,8 @@ limitations under the License. */
 namespace paddle {
 namespace platform {
 
+std::string GetCudaErrorMessage(cudaError_t e);
+
 //! Get the total number of GPU devices in system.
 int GetCUDADeviceCount();
 
