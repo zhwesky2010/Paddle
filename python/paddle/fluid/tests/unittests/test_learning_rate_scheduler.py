@@ -199,7 +199,7 @@ class TestLearningRateDecay(unittest.TestCase):
         ]
 
         for py_decay_fn, fluid_decay_fn, kwargs in decay_fns:
-            print("class=" + self.__class__.__name__ + "decay_fn=" +
+            print("class=" + self.__class__.__name__ + " decay_fn=" +
                   py_decay_fn.__name__ + " kwargs=" + str(kwargs))
             main_program = framework.Program()
             startup_program = framework.Program()
@@ -333,6 +333,196 @@ class TestLinearWamrupLearningRateDecayDygraphModeTypeCheck(unittest.TestCase):
                     warmup_steps=2,
                     start_lr=0.0,
                     end_lr=1.0)
+
+
+def reduce_lr_on_plateau(decay_rate, threshold, cooldown, patience, m, n, loss,
+                         var_list):
+    def is_better(current, best, m, n):
+        if m == 'min' and n == 'rel':
+            return current < best - best * threshold
+        elif m == 'min' and n == 'abs':
+            return current < best - threshold
+        elif m == 'max' and n == 'rel':
+            return current > best + best * threshold
+        else:  # mode == 'max' and epsilon_mode == 'abs':
+            return current > best + threshold
+
+    if var_list[2] > 0:
+        var_list[2] -= 1
+        return var_list[1]
+
+    if is_better(loss, var_list[0], m, n):
+        var_list[0] = loss
+        var_list[3] = 0
+    else:
+        var_list[3] += 1
+        if var_list[3] > patience:
+            var_list[2] = cooldown
+            var_list[3] = 0
+            new_lr = var_list[1] * decay_rate
+            var_list[1] = new_lr if var_list[1] - new_lr > 1e-8 else var_list[1]
+
+    return var_list[1]
+
+
+class TestReduceLROnPlateauDecay(unittest.TestCase):
+    def test_reduce_lr(self):
+        # the decay rate must be less than 1.0
+        with self.assertRaises(ValueError):
+            layers.reduce_lr_on_plateau(
+                indicator=layers.zeros(
+                    shape=[1], dtype='float32'),
+                learning_rate=1.0,
+                decay_rate=2.0)
+        # the mode must be "min" or "max"
+        with self.assertRaises(ValueError):
+            layers.reduce_lr_on_plateau(
+                indicator=layers.zeros(
+                    shape=[1], dtype='float32'),
+                learning_rate=1.0,
+                mode="test")
+        # the threshold_mode must be "rel" or "abs"
+        with self.assertRaises(ValueError):
+            layers.reduce_lr_on_plateau(
+                indicator=layers.zeros(
+                    shape=[1], dtype='float32'),
+                learning_rate=1.0,
+                threshold_mode="test")
+
+        def run_reduce_lr(place, kwargs):
+            main_prog = fluid.Program()
+            startup_prog = fluid.Program()
+
+            with fluid.program_guard(main_prog, startup_prog):
+                count = layers.create_global_var(
+                    name='count',
+                    shape=[1],
+                    value=0.,
+                    dtype='float32',
+                    persistable=True)
+                layers.increment(count, value=0.5)  # [1.]
+                loss = layers.sin(count)
+                decayed_lr = layers.reduce_lr_on_plateau(loss, **kwargs)
+
+            exe = fluid.Executor(place)
+            exe.run(startup_prog)
+
+            best = float("-10000") if m == "max" else float("10000")
+            expected_lr = 1.0
+            cooldown_counter = 0
+            num_bad_epochs = 0
+            var_list = [best, expected_lr, cooldown_counter, num_bad_epochs]
+            for step in range(30):
+                # get actual lr
+                out = exe.run(main_prog, fetch_list=[decayed_lr, loss])
+                actual_lr = out[0]
+
+                # get expected lr
+                expected_lr = reduce_lr_on_plateau(
+                    kwargs['decay_rate'], kwargs['threshold'],
+                    kwargs['cooldown'], kwargs['patience'], kwargs['mode'],
+                    kwargs['threshold_mode'], out[1], var_list)
+                self.assertEqual(
+                    expected_lr,
+                    actual_lr,
+                    msg='Failed reduce lr scheduler in step {0}, Python result is {1}, Fluid result is {2}'.
+                    format(step, expected_lr, actual_lr))
+
+        # test_reduce_lr
+        places = [fluid.CPUPlace()]
+
+        if core.is_compiled_with_cuda():
+            places.append(fluid.CUDAPlace(0))
+        for place in places:
+            base_lr = 1.0
+            patience = 3
+            cooldown = 1
+            decay_rate = 0.5
+            threshold = 1e-4
+            for m, n in zip(['min', 'max', 'min', 'max'],
+                            ['rel', 'rel', 'abs', 'abs']):
+                kwargs = {
+                    'learning_rate': base_lr,
+                    'decay_rate': decay_rate,
+                    'threshold': threshold,
+                    'patience': patience,
+                    'cooldown': cooldown,
+                    'mode': m,
+                    'threshold_mode': n
+                }
+                run_reduce_lr(place, kwargs)
+
+    def test_dygraph_mode(self):
+        with fluid.dygraph.guard():
+            # the decay rate must be less than 1.0
+            with self.assertRaises(ValueError):
+                layers.reduce_lr_on_plateau(
+                    indicator=layers.zeros(
+                        shape=[1], dtype='float32'),
+                    learning_rate=1.0,
+                    decay_rate=2.0)
+            # the mode must be "min" or "max"
+            with self.assertRaises(ValueError):
+                layers.reduce_lr_on_plateau(
+                    indicator=layers.zeros(
+                        shape=[1], dtype='float32'),
+                    learning_rate=1.0,
+                    mode="test")
+            # the threshold_mode must be "rel" or "abs"
+            with self.assertRaises(ValueError):
+                layers.reduce_lr_on_plateau(
+                    indicator=layers.zeros(
+                        shape=[1], dtype='float32'),
+                    learning_rate=1.0,
+                    threshold_mode="test")
+
+            base_lr = 1.0
+            patience = 3
+            cooldown = 1
+            decay_rate = 0.5
+            threshold = 1e-4
+            linear = fluid.dygraph.Linear(10, 10)
+
+            for m, n in zip(['min', 'max', 'min', 'max'],
+                            ['rel', 'rel', 'abs', 'abs']):
+                kwargs = {
+                    'learning_rate': base_lr,
+                    'decay_rate': decay_rate,
+                    'threshold': threshold,
+                    'patience': patience,
+                    'cooldown': cooldown,
+                    'mode': m,
+                    'threshold_mode': n
+                }
+                print("class=" + fluid.dygraph.ReduceLROnPlateau.__name__ +
+                      " kwargs=" + str(kwargs))
+                reduce_lr = fluid.dygraph.ReduceLROnPlateau(**kwargs)
+                sgd = fluid.optimizer.SGD(learning_rate=reduce_lr,
+                                          parameter_list=linear.parameters())
+
+                best = float("-10000") if m == "max" else float("10000")
+                expected_lr = 1.0
+                cooldown_counter = 0
+                num_bad_epochs = 0
+                var_list = [best, expected_lr, cooldown_counter, num_bad_epochs]
+                for step in range(30):
+                    x = fluid.dygraph.to_variable(
+                        np.array([float(step + 1) / 2.0])).astype('float32')
+                    loss = layers.sin(x)
+                    # get expected lr
+                    expected_lr = reduce_lr_on_plateau(decay_rate, threshold,
+                                                       cooldown, patience, m, n,
+                                                       loss, var_list)
+
+                    # get actual lr
+                    sgd.minimize(loss)
+                    lr_val = list(sgd._learning_rate_map.values())[0]
+                    actual_lr = lr_val.numpy()[0]
+                    self.assertEqual(
+                        expected_lr,
+                        actual_lr,
+                        msg='Failed reduce lr scheduler in step {0}, Python result is {1}, Fluid result is {2}'.
+                        format(step, expected_lr, actual_lr))
 
 
 if __name__ == '__main__':

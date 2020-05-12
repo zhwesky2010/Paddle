@@ -1,6 +1,17 @@
-# Copyright (c) 2016 PaddlePaddle Authors. All Rights Reserved
+# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -38,7 +49,7 @@ from ..data_feeder import check_variable_and_dtype, check_type
 __all__ = [
     'exponential_decay', 'natural_exp_decay', 'inverse_time_decay',
     'polynomial_decay', 'piecewise_decay', 'noam_decay', 'cosine_decay',
-    'linear_lr_warmup'
+    'linear_lr_warmup', 'reduce_lr_on_plateau'
 ]
 
 
@@ -555,3 +566,194 @@ def linear_lr_warmup(learning_rate, warmup_steps, start_lr, end_lr):
                             shape=[1], dtype=dtype, value=float(learning_rate))
                     tensor.assign(learning_rate, lr)
             return lr
+
+
+def reduce_lr_on_plateau(indicator,
+                         learning_rate,
+                         mode='min',
+                         decay_rate=0.1,
+                         patience=10,
+                         threshold=1e-4,
+                         threshold_mode='rel',
+                         cooldown=0,
+                         min_lr=0):
+    """
+    Reduce learning rate when the monitoring ``indicator`` has stopped improving. Models often benefit 
+    from reducing the learning rate by 2 to 10 times once learning stagnates.
+
+    ``indicator`` will be monitored to determine whether the learning rate will reduce. In ``'min'`` mode, 
+    when ``indicator`` stop decreasing for a ``patience`` number of epochs, the learning rate will be 
+    reduced to ``learning_rate * decay_rate`` . In ``'max'`` mode, all is the same when ``indicator`` stop increasing. 
+    
+    In addition, After each reduction, it will wait a ``cooldown`` number of epochs before resuming normal operation.
+
+    Args:
+        indicator (Variable): A ``Variable`` that will be monitored to determine whether the learning rate will reduce. 
+            If it has no improvement, the learning rate will reduce. It should be 1-D Tensor with shape [1]. 
+            Usually, it is the ``loss`` in the network.
+        learning_rate (Variable|float|int): The initial learning rate. It can be set to python float or int number.
+            If the type is Variable, it should be 1-D Tensor with shape [1], the data type can be 'float32' or 'float64'.
+        mode (str, optional): ``'min'`` or ``'max'`` can be selected. ``'min'`` means that the learning rate will reduce when 
+            ``indicator`` stops decreasing, and ``'max'`` means that the learning rate will reduce when ``indicator`` stops 
+            increasing. Default: ``'min'`` .
+        decay_rate (float, optional): The Ratio that the learning rate will be reduced. ``new_lr = origin_lr * decay_rate`` . 
+            It should be less than 1.0. Default: 0.1.
+        patience (int, optional): When ``indicator`` doesn't improve for this number of epochs, learing rate will be reduced. 
+            Default: 10.
+        threshold (float, optional): ``threshold`` and ``threshold_mode`` will determine the minimum change of ``indicator`` . 
+            This make tiny changes of ``indicator`` will be ignored. Default: 1e-4.
+        threshold_mode (str, optional): ``'rel'`` or ``'abs'`` can be selected. In ``'rel'`` mode, the minimum change of ``indicator``
+            is ``last_loss * threshold`` , where ``last_loss`` is the value of ``indicator`` in last epoch. In ``'abs'`` mode, 
+            the minimum change of ``indicator`` is ``threshold`` . Default: ``'rel'`` .
+        cooldown (int, optional): The number of epochs to wait before resuming normal operation. Default: 0.
+        min_lr (float, optional): The lower bound of the learning rate after reduction. Default: 0.
+    
+    Returns:
+        Variable: The learning rate determined by the improvement of 'indicator'
+
+    Examples:
+    
+    .. code-block:: python
+
+        import paddle.fluid as fluid
+        import numpy as np
+
+        x = fluid.data(name='X', shape=[10, 10])
+        predict = fluid.layers.fc(x, 10)
+        loss = fluid.layers.reduce_mean(predict)
+
+        lr = fluid.layers.reduce_lr_on_plateau(
+                                indicator = loss, 
+                                learning_rate = 1.0,
+                                decay_rate = 0.5,
+                                patience = 5,
+                                cooldown = 2)
+
+        adam = fluid.optimizer.Adam(learning_rate = lr)
+        adam.minimize(loss)
+
+        exe = fluid.Executor(fluid.CPUPlace())
+        exe.run(fluid.default_startup_program())
+        for epoch in range(20):
+            x = np.random.uniform(-1, 1, [10, 10]).astype("float32")
+            out = exe.run(fluid.default_main_program(), feed={'X':x}, fetch_list=[loss, lr])
+            print("current loss is %s, current lr is %s" % (out[0], out[1]))        
+    """
+    dtype = 'float32'
+    if isinstance(learning_rate, Variable):
+        dtype = learning_rate.dtype
+
+    with default_main_program()._lr_schedule_guard():
+
+        if in_dygraph_mode():
+            lr = imperate_lr.ReduceLROnPlateau(learning_rate, mode, decay_rate,
+                                               patience, threshold,
+                                               threshold_mode, cooldown, min_lr)
+            return lr
+        else:
+            check_type(indicator, 'indicator', Variable, 'reduce_lr_on_plateau')
+            check_type(learning_rate, 'learning_rate', (float, int, Variable),
+                       'reduce_lr_on_plateau')
+            assert len(indicator.shape) == 1 and indicator.shape[0] == 1, "The shape of monitor "   \
+                "indicator in reduce_lr_on_plateau should be (1L,), but the current shape is {}. "  \
+                "Maybe that you should call fluid.layers.mean to process the indicator in advance." \
+                .format(indicator.shape)
+
+            assert indicator.shape == (
+                1,
+            ), "The monitor indicator in reduce_lr_on_plateau must be 1-D tensor with shape [1]"
+
+            if decay_rate >= 1.0:
+                raise ValueError(
+                    'new_lr = origin_lr * decay_rate and decay_rate should be < 1.0.'
+                )
+
+            if mode not in ['min', 'max']:
+                raise ValueError('mode ' + mode + ' is unknown!')
+
+            if threshold_mode not in ['rel', 'abs']:
+                raise ValueError('threshold mode ' + threshold_mode +
+                                 ' is unknown!')
+
+            global_step = _decay_step_counter()
+            best = tensor.create_global_var(
+                name="best",
+                shape=[1],
+                value=0,
+                dtype=indicator.dtype,
+                persistable=True)
+
+            def init_best_loss():
+                init_var = (indicator + 1) if mode == 'min' else (indicator - 1)
+                tensor.assign(init_var, best)
+
+            control_flow.cond(global_step == 0, init_best_loss)
+
+            if mode == 'min' and threshold_mode == 'rel':
+                better_cond = control_flow.less_than(indicator,
+                                                     best - best * threshold)
+
+            elif mode == 'min' and threshold_mode == 'abs':
+                better_cond = control_flow.less_than(indicator,
+                                                     best - threshold)
+
+            elif mode == 'max' and threshold_mode == 'rel':
+                better_cond = control_flow.greater_than(indicator,
+                                                        best + best * threshold)
+
+            else:  # mode == 'max' and epsilon_mode == 'abs':
+                better_cond = control_flow.greater_than(indicator,
+                                                        best - threshold)
+
+            if not isinstance(learning_rate, tensor.Variable):
+                learning_rate = tensor.create_global_var(
+                    name="learning_rate_reduce",
+                    shape=[1],
+                    value=float(learning_rate),
+                    dtype=dtype,
+                    persistable=True)
+
+            cooldown = tensor.fill_constant(
+                shape=[1], dtype='int32', value=cooldown)
+            min_lr = tensor.fill_constant(
+                shape=[1], dtype='float32', value=min_lr)
+            zero = tensor.zeros(shape=[1], dtype='int32')
+
+            cooldown_counter = tensor.create_global_var(
+                name="cooldown_counter",
+                shape=[1],
+                value=0,
+                dtype='int32',
+                persistable=True)
+
+            num_bad_epochs = tensor.create_global_var(
+                name="num_bad_epochs",
+                shape=[1],
+                value=0,
+                dtype='int32',
+                persistable=True)
+
+            def true_func():
+                tensor.assign(zero, num_bad_epochs)
+                tensor.assign(cooldown, cooldown_counter)
+                new_lr = nn.elementwise_max(learning_rate * decay_rate, min_lr)
+                tensor.assign(new_lr, learning_rate)
+
+            # the first level control_flow
+            with control_flow.Switch() as cooldown_switch:
+                with cooldown_switch.case(cooldown_counter > 0):
+                    control_flow.increment(cooldown_counter, value=-1)
+                with cooldown_switch.default():
+                    # the second level control_flow
+                    with control_flow.Switch() as better_switch:
+                        with better_switch.case(better_cond):
+                            tensor.assign(indicator, best)
+                            tensor.assign(zero, num_bad_epochs)
+                        with better_switch.default():
+                            control_flow.increment(num_bad_epochs)
+
+                            # the thirdth level control_flow
+                            control_flow.cond(num_bad_epochs > patience,
+                                              true_func)
+
+            return learning_rate
