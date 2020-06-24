@@ -948,5 +948,81 @@ class TestRecomputeOptimizerCUDA(unittest.TestCase):
                 self.assertEqual(drop_vec[0].tolist(), drop_vec[1].tolist())
 
 
+class TestModelAverage(unittest.TestCase):
+    def average_py_func():
+        pass
+    
+    def test_model_average(self):
+        place = fluid.CUDAPlace(0) if framework.is_compiled_with_cuda() else fluid.CPUPlace()
+        exe = fluid.Executor(place)
+
+        train_program = fluid.Program()
+        startup_program = fluid.Program()
+        with fluid.program_guard(train_program, startup_program):
+            data = fluid.layers.data(name='X', shape=[2], dtype='float32')
+            hidden = fluid.layers.fc(input=data, size=3)
+            loss = fluid.layers.mean(hidden)
+            optimizer = fluid.optimizer.Momentum(learning_rate=0.2, momentum=0.1)
+            optimizer.minimize(loss)
+
+            model_average = fluid.optimizer.ModelAverage(0.15,
+                                            min_average_window=100,
+                                            max_average_window=125)
+            exe.run(startup_program)
+            for i in range(125):
+                x = np.random.random(size=(10, 2)).astype('float32')
+                outs = exe.run(program=train_program,
+                            feed={'X': x},
+                            fetch_list=[loss.name, "fc_0.w_0"])
+                #print("step: {}, param:{}, loss: {}".format(i, outs[1], outs[0]))
+            
+            with model_average.apply(exe):
+                x = np.random.random(size=(10, 2)).astype('float32')
+                outs = exe.run(program=train_program,
+                        feed={'X': x},
+                        fetch_list=[loss.name, "fc_0.w_0"])
+                print("apply, param: {}, loss: {}".format(outs[1], outs[0]))
+                
+            x = np.random.random(size=(10, 2)).astype('float32')
+            outs = exe.run(program=train_program,
+                    feed={'X': x},
+                    fetch_list=[loss.name, "fc_0.w_0"])
+            print("restore, param: {}, loss: {}".format(outs[1], outs[0]))
+
+    def test_dygraph_model_average(self):
+        with fluid.dygraph.guard():
+            linear = fluid.dygraph.Linear(2, 3)
+            optimizer = fluid.optimizer.Momentum(learning_rate=0.2, momentum=0.1, parameter_list=linear.parameters())
+            model_average = fluid.optimizer.ModelAverage(0.15, min_average_window=100, max_average_window=125, parameter_list=linear.parameters())
+            
+            for i in range(125):
+                x = np.random.random(size=(10, 2)).astype('float32')
+                data = fluid.dygraph.to_variable(x)
+                hidden = linear(data)
+                loss = fluid.layers.mean(hidden)
+                loss.backward()
+                optimizer.minimize(loss)
+                linear.clear_gradients()
+
+                model_average.step()
+                #print("step: {}, param:{}, loss: {}".format(i, linear.weight.numpy(), loss.numpy()))
+
+            
+            with model_average.apply():
+                x = np.random.random(size=(10, 2)).astype('float32')
+                data = fluid.dygraph.to_variable(x)
+                hidden = linear(data)
+                loss = fluid.layers.mean(hidden)
+
+                print("apply, param:{}, loss: {}".format(linear.weight.numpy(), loss.numpy()))
+
+            x = np.random.random(size=(10, 2)).astype('float32')
+            data = fluid.dygraph.to_variable(x)
+            hidden = linear(data)
+            loss = fluid.layers.mean(hidden)
+
+            print("restore, param:{}, loss: {}".format(linear.weight.numpy(), loss.numpy()))       
+
+
 if __name__ == '__main__':
     unittest.main()

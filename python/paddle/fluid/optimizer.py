@@ -3031,11 +3031,6 @@ class ModelAverage(Optimizer):
         average_window_rate (float): The calculate ratio of the window length relative to ``Parameter`` update times.
         min_average_window (int, optional): the minimum size of average window length. The default value is 10000.
         max_average_window (int, optional): The maximum size of average window length. The default value is 10000.
-        regularization (WeightDecayRegularizer, optional): The strategy of regularization. There are two method: \
-             :ref:`api_fluid_regularizer_L1Decay` , :ref:`api_fluid_regularizer_L2Decay` . If a parameter has set \
-            regularizer using :ref:`api_fluid_ParamAttr` already, the regularization setting here in optimizer will be \
-            ignored for this parameter. Otherwise, the regularization setting here in optimizer will take effect.  \
-            Default None, meaning there is no regularization.
         name (str, optional): Normally there is no need for user to set this property.
             For more information, please refer to :ref:`api_guide_Name`.
             The default value is None.
@@ -3085,59 +3080,83 @@ class ModelAverage(Optimizer):
                  average_window_rate,
                  min_average_window=10000,
                  max_average_window=10000,
-                 regularization=None,
+                 parameter_list=None,
                  name=None):
-        if framework.in_dygraph_mode():
-            raise Exception("In dygraph, don't support ModelAverage.")
         super(ModelAverage, self).__init__(
-            0.0, regularization=regularization, name=name)
+            0.0, parameter_list=parameter_list, name=name)
         self.average_window = average_window_rate
         self.min_average_window = min_average_window
         self.max_average_window = max_average_window
-
+        
+        self.helper = LayerHelper("average_accumulate")
         self.params_grads = []
-        for param in framework.default_main_program().global_block(
-        ).all_parameters():
+        global_block = framework.default_main_program().global_block()
+        parameter_list = self._parameter_list if self._parameter_list else global_block.all_parameters()
+
+        for param in parameter_list:
             if param.do_model_average != False:
-                grad = param.block.create_var(
+                grad = global_block.create_var(
                     name=unique_name.generate_with_ignorable_key(".".join(
                         [param.name, 'tmp'])),
                     dtype=param.dtype,
                     persistable=False,
                     stop_gradient=True)
                 self.params_grads.append((param, grad))
+        
+                sum_1 = self._add_accumulator('sum_1', param)
+                sum_2 = self._add_accumulator('sum_2', param)
+                sum_3 = self._add_accumulator('sum_3', param)
+                num_accumulates = self._add_accumulator(
+                    'num_accumulates', param, dtype='int64', shape=[1])
+                old_num_accumulates = self._add_accumulator(
+                    'old_num_accumulates', param, dtype='int64', shape=[1])
+                num_updates = self._add_accumulator(
+                    'num_updates', param, dtype='int64', shape=[1])
 
+        if not framework.in_dygraph_mode():
+            for param, grad in self.params_grads:
+                if grad is None:
+                    continue
+                with param.block.program._optimized_guard([param, grad]), name_scope('move_average'):
+                    self._append_average_accumulate_op(param)
+
+            self.apply_program = Program()
+            block = self.apply_program.global_block()
+            with program_guard(main_program=self.apply_program):
+                for param_grad in self.params_grads:
+                    self._append_average_apply_op(block, param_grad)
+
+            self.restore_program = Program()
+            block = self.restore_program.global_block()
+            with program_guard(main_program=self.restore_program):
+                for param_grad in self.params_grads:
+                    self._append_average_restore_op(block, param_grad)
+    
+    @framework.dygraph_only
+    def step(self):
         for param, grad in self.params_grads:
-            if grad is None:
-                continue
-            with param.block.program._optimized_guard(
-                [param, grad]), name_scope('move_average'):
-                self._append_average_accumulate_op(param)
+            self._append_average_accumulate_op(param)
 
-        self.apply_program = Program()
-        block = self.apply_program.global_block()
-        with program_guard(main_program=self.apply_program):
-            for param_grad in self.params_grads:
-                self._add_average_apply_op(block, param_grad)
+    def _append_average_apply_op(self, block, param_grad):
+        param = param_grad[0]
+        grad = param_grad[1]
+        sum_1 = self._get_accumulator('sum_1', param)
+        sum_2 = self._get_accumulator('sum_2', param)
+        sum_3 = self._get_accumulator('sum_3', param)
+        num_accumulates = self._get_accumulator('num_accumulates', param)
+        old_num_accumulates = self._get_accumulator('old_num_accumulates', param)
+        num_updates = self._get_accumulator('num_updates', param)
+        
+        if not framework.in_dygraph_mode():
+            param = block._clone_variable(param)
+            grad = block._clone_variable(grad)
+            sum_1 = block._clone_variable(sum_1)
+            sum_2 = block._clone_variable(sum_2)
+            sum_3 = block._clone_variable(sum_3)
+            num_accumulates = block._clone_variable(num_accumulates)
+            old_num_accumulates = block._clone_variable(old_num_accumulates)
+            num_updates = block._clone_variable(num_updates)
 
-        self.restore_program = Program()
-        block = self.restore_program.global_block()
-        with program_guard(main_program=self.restore_program):
-            for param_grad in self.params_grads:
-                self._add_average_restore_op(block, param_grad)
-
-    def _add_average_apply_op(self, block, param_grad):
-        param = block._clone_variable(param_grad[0])
-        grad = block._clone_variable(param_grad[1])
-        sum_1 = block._clone_variable(self._get_accumulator('sum_1', param))
-        sum_2 = block._clone_variable(self._get_accumulator('sum_2', param))
-        sum_3 = block._clone_variable(self._get_accumulator('sum_3', param))
-        num_accumulates = block._clone_variable(
-            self._get_accumulator('num_accumulates', param))
-        old_num_accumulates = block._clone_variable(
-            self._get_accumulator('old_num_accumulates', param))
-        num_updates = block._clone_variable(
-            self._get_accumulator('num_updates', param))
         # backup param value to grad
         layers.assign(input=param, output=grad)
         # param = (sum_1 + sum_2 + sum_3) / (num_accumulates + old_num_accumulates)
@@ -3147,24 +3166,28 @@ class ModelAverage(Optimizer):
             x=tmp, dtype='float32' if self._dtype == None else self._dtype)
         sum = layers.cast(
             x=sum, dtype='float32' if self._dtype == None else self._dtype)
-        ops._elementwise_div(x=sum, y=tmp, out=param)
+        self.helper.append_op(
+            type="elementwise_div",
+            inputs={'X': sum,
+                    'Y': tmp},
+            outputs={'Out': param})
 
-    def _add_average_restore_op(self, block, param_grad):
-        param = block._clone_variable(param_grad[0])
-        grad = block._clone_variable(param_grad[1])
+    def _append_average_restore_op(self, block, param_grad):
+        param = param_grad[0]
+        grad = param_grad[1]
+        if not framework.in_dygraph_mode():
+            param = block._clone_variable(param)
+            grad = block._clone_variable(grad)
+
         layers.assign(input=grad, output=param)
 
     def _append_average_accumulate_op(self, param):
-        self.helper = LayerHelper("average_accumulate")
-        sum_1 = self._add_accumulator('sum_1', param)
-        sum_2 = self._add_accumulator('sum_2', param)
-        sum_3 = self._add_accumulator('sum_3', param)
-        num_accumulates = self._add_accumulator(
-            'num_accumulates', param, dtype='int64', shape=[1])
-        old_num_accumulates = self._add_accumulator(
-            'old_num_accumulates', param, dtype='int64', shape=[1])
-        num_updates = self._add_accumulator(
-            'num_updates', param, dtype='int64', shape=[1])
+        sum_1 = self._get_accumulator('sum_1', param)
+        sum_2 = self._get_accumulator('sum_2', param)
+        sum_3 = self._get_accumulator('sum_3', param)
+        num_accumulates = self._get_accumulator('num_accumulates', param)
+        old_num_accumulates = self._get_accumulator('old_num_accumulates', param)
+        num_updates = self._get_accumulator('num_updates', param)
 
         self.helper.append_op(
             type='average_accumulates',
@@ -3193,7 +3216,7 @@ class ModelAverage(Optimizer):
             stop_gradient=True)
 
     @signature_safe_contextmanager
-    def apply(self, executor, need_restore=True):
+    def apply(self, executor=None, need_restore=True):
         """
         Apply the average of the cumulative ``Parameter`` to the parameters of the current model.
 
@@ -3243,14 +3266,21 @@ class ModelAverage(Optimizer):
                             feed={'X': x},
                             fetch_list=[loss.name])
         """
-        executor.run(self.apply_program)
+        if framework.in_dygraph_mode():
+            block = framework.default_main_program().global_block()
+            for param_grad in self.params_grads:
+                    self._append_average_apply_op(block, param_grad)
+        else:
+            if executor is None:
+                raise AttributeError("executor argument given to the Optimizer should not be None in static mode.")
+            executor.run(self.apply_program)
         try:
             yield
         finally:
             if need_restore:
                 self.restore(executor)
 
-    def restore(self, executor):
+    def restore(self, executor=None):
         """
         Restore ``Parameter`` values of current model.
         
@@ -3300,7 +3330,13 @@ class ModelAverage(Optimizer):
                 # restore Parameters
                 model_average.restore(exe)
         """
-        executor.run(self.restore_program)
+        if framework.in_dygraph_mode():
+            block = framework.default_main_program().global_block()
+            for param_grad in self.params_grads:
+                self._append_average_restore_op(block, param_grad)
+        else:    
+            executor.run(self.restore_program)
+        
 
 
 class ExponentialMovingAverage(object):
