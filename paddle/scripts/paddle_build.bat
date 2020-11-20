@@ -174,7 +174,7 @@ set WITH_INFERENCE_API_TEST=OFF
 call :cmake || goto cmake_error
 call :build || goto build_error
 call :test_whl_pacakage || goto test_whl_pacakage_error
-:: call :unit_test || goto unit_test_error
+call :unit_test || goto unit_test_error
 :: call :test_inference || goto test_inference_error
 :: call :check_change_of_unittest || goto check_change_of_unittest_error
 goto:success
@@ -424,9 +424,15 @@ test_trilinear_interp_op^|test_trilinear_interp_v2_op^|test_weight_decay^|test_b
 test_imperative_qat^|test_imperative_qat_channelwise^|test_quantization_pass^|test_beam_search_decoder^|test_argsort_op^|test_eager_deletion_gru_net^|test_lstmp_op^|test_label_semantic_roles^|^
 test_graph^|test_user_defined_quantization
 
+set parallel_test=test_diag
+
 set /a end=CUDA_DEVICE_COUNT-1
 
-set parallel_test=''
+for /L %%# in (0,1,%end%) do (
+    set CUDA_VISIBLE_DEVICES=%%#
+    ctest.exe -I %%#,,%CUDA_DEVICE_COUNT% -E "%disable_ut_quickly%|%parallel_test%|%diable_wingpu_test%|%long_time_test%" -LE %nightly_label% --output-on-failure -C Release -j 1 --repeat until-pass:4 after-timeout:4
+    if !errorlevel! NEQ 0 exit /b 8
+)
 
 for /L %%# in (0,1,%end%) do (
     set CUDA_VISIBLE_DEVICES=%%#
@@ -434,11 +440,6 @@ for /L %%# in (0,1,%end%) do (
     if !errorlevel! NEQ 0 exit /b 8
 )
 
-for /L %%# in (0,1,%end%) do (
-    set CUDA_VISIBLE_DEVICES=%%#
-    ctest.exe -I %%#,,%CUDA_DEVICE_COUNT% -E "%disable_ut_quickly%|%parallel_test%|%diable_wingpu_test%|%long_time_test%" -LE %nightly_label% --output-on-failure -C Release -j 1 --repeat until-pass:4 after-timeout:4
-    if !errorlevel! NEQ 0 exit /b 8
-)
 goto:eof
 
 :parallel_test_base_cpu
