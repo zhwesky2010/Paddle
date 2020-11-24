@@ -68,6 +68,13 @@ class VariableWrapper {
     }
   }
 
+  bool IsLeaf() const {
+    if (HasGradVar() && !OverridedStopGradient()) {
+      return !GetGradVar()->HasGradNode();
+    }
+    return true;
+  }
+
   void SetPersistable(bool persistable) { persistable_ = persistable; }
 
   bool Persistable() const { return persistable_; }
@@ -95,6 +102,8 @@ class VariableWrapper {
   std::shared_ptr<GradOpNode> GetGradNode() const { return grad_node_.lock(); }
 
   bool HasGradNode() const { return !grad_node_.expired(); }
+
+  bool HasGradVar() const { return !grad_var_.expired(); }
 
   framework::proto::VarType::Type DataType() const {
     const framework::Tensor* tensor = nullptr;
