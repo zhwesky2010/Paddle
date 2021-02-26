@@ -10,6 +10,7 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 #include <iostream>
+#include <string>
 #include "gtest/gtest.h"
 #include "paddle/fluid/extension/include/op_meta_info.h"
 
@@ -22,12 +23,12 @@ TEST(PD_THROW, empty) {
     std::string err_msg = e.what();
     EXPECT_TRUE(err_msg.find("An error occured.") != std::string::npos);
 #if _WIN32
-    EXPECT_TRUE(err_msg.find("python\\paddle\\fluid\\tests\\custom_op\\test_"
-                             "check_error.cc:19") != std::string::npos);
+    EXPECT_TRUE(err_msg.find("tests\\custom_op\\test_check_error.cc:20") !=
+                std::string::npos);
 #else
     EXPECT_TRUE(
         err_msg.find(
-            "python/paddle/fluid/tests/custom_op/test_check_error.cc:19") !=
+            "python/paddle/fluid/tests/custom_op/test_check_error.cc:20") !=
         std::string::npos);
 #endif
   }
@@ -52,12 +53,12 @@ TEST(PD_THROW, non_empty) {
                              "DataType of 0.23 is FLOAT.") !=
                 std::string::npos);
 #if _WIN32
-    EXPECT_TRUE(err_msg.find("python\\paddle\\fluid\\tests\\custom_op\\test_"
-                             "check_error.cc:49") != std::string::npos);
+    EXPECT_TRUE(err_msg.find("tests\\custom_op\\test_check_error.cc:48") !=
+                std::string::npos);
 #else
     EXPECT_TRUE(
         err_msg.find(
-            "python/paddle/fluid/tests/custom_op/test_check_error.cc:49") !=
+            "python/paddle/fluid/tests/custom_op/test_check_error.cc:48") !=
         std::string::npos);
 #endif
   }
@@ -84,12 +85,12 @@ TEST(PD_CHECK, FAILED) {
     EXPECT_TRUE(err_msg.find("Expected false, but it's not satisfied.") !=
                 std::string::npos);
 #if _WIN32
-    EXPECT_TRUE(err_msg.find("python\\paddle\\fluid\\tests\\custom_op\\test_"
-                             "check_error.cc:84") != std::string::npos);
+    EXPECT_TRUE(err_msg.find("tests\\custom_op\\test_check_error.cc:81") !=
+                std::string::npos);
 #else
     EXPECT_TRUE(
         err_msg.find(
-            "python/paddle/fluid/tests/custom_op/test_check_error.cc:84") !=
+            "python/paddle/fluid/tests/custom_op/test_check_error.cc:81") !=
         std::string::npos);
 #endif
   }
@@ -109,16 +110,16 @@ TEST(PD_CHECK, FAILED) {
   } catch (const std::exception& e) {
     caught_exception = true;
     std::string err_msg = e.what();
-    EXPECT_TRUE(err_msg.find("PD_CHECK returns 0. DataType of 1 is INT. "
+    EXPECT_TRUE(err_msg.find("PD_CHECK returns 0. DataType of 1 is INT. " +
                              "DataType of 0.23 is FLOAT.") !=
                 std::string::npos);
 #if _WIN32
-    EXPECT_TRUE(err_msg.find("python\\paddle\\fluid\\tests\\custom_op\\test_"
-                             "check_error.cc:114") != std::string::npos);
+    EXPECT_TRUE(err_msg.find("tests\\custom_op\\test_check_error.cc:109") !=
+                std::string::npos);
 #else
     EXPECT_TRUE(
         err_msg.find(
-            "python/paddle/fluid/tests/custom_op/test_check_error.cc:114") !=
+            "python/paddle/fluid/tests/custom_op/test_check_error.cc:109") !=
         std::string::npos);
 #endif
   }
@@ -135,12 +136,12 @@ TEST(PD_CHECK, FAILED) {
     EXPECT_TRUE(err_msg.find("Expected a > b, but it's not satisfied.") !=
                 std::string::npos);
 #if _WIN32
-    EXPECT_TRUE(err_msg.find("python\\paddle\\fluid\\tests\\custom_op\\test_"
-                             "check_error.cc:139") != std::string::npos);
+    EXPECT_TRUE(err_msg.find("tests\\custom_op\\test_check_error.cc:132") !=
+                std::string::npos);
 #else
     EXPECT_TRUE(
         err_msg.find(
-            "python/paddle/fluid/tests/custom_op/test_check_error.cc:139") !=
+            "python/paddle/fluid/tests/custom_op/test_check_error.cc:132") !=
         std::string::npos);
 #endif
   }
@@ -157,12 +158,12 @@ TEST(PD_CHECK, FAILED) {
     EXPECT_TRUE(err_msg.find("PD_CHECK returns 0, because 123 > 0.345") !=
                 std::string::npos);
 #if _WIN32
-    EXPECT_TRUE(err_msg.find("python\\paddle\\fluid\\tests\\custom_op\\test_"
-                             "check_error.cc:163") != std::string::npos);
+    EXPECT_TRUE(err_msg.find("tests\\custom_op\\test_check_error.cc:154") !=
+                std::string::npos);
 #else
     EXPECT_TRUE(
         err_msg.find(
-            "python/paddle/fluid/tests/custom_op/test_check_error.cc:163") !=
+            "python/paddle/fluid/tests/custom_op/test_check_error.cc:154") !=
         std::string::npos);
 #endif
   }
