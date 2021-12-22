@@ -89,18 +89,20 @@ class ParameterChecks(unittest.TestCase):
 
     def test_parambase_to_vector(self):
         with guard():
-            linear1 = paddle.nn.Linear(
-                10,
-                15,
-                paddle.ParamAttr(
-                    initializer=paddle.nn.initializer.Constant(3.)))
+            initializer = paddle.ParamAttr(
+                initializer=paddle.nn.initializer.Constant(3.))
+            linear1 = paddle.nn.Linear(10, 15, initializer)
 
             vec = paddle.nn.utils.parameters_to_vector(linear1.parameters())
+            self.assertEqual(linear1.weight.shape, [10, 15])
+            self.assertEqual(linear1.bias.shape, [15])
             self.assertTrue(isinstance(vec, Variable))
             self.assertTrue(vec.shape, [165])
 
             linear2 = paddle.nn.Linear(10, 15)
             paddle.nn.utils.vector_to_parameters(vec, linear2.parameters())
+            self.assertEqual(linear2.weight.shape, [10, 15])
+            self.assertEqual(linear2.bias.shape, [15])
             self.assertTrue(
                 np.array_equal(linear1.weight.numpy(), linear2.weight.numpy()),
                 True)
@@ -114,18 +116,20 @@ class ParameterChecks(unittest.TestCase):
         main_program = paddle.static.Program()
         start_program = paddle.static.Program()
         with paddle.static.program_guard(main_program, start_program):
-            linear1 = paddle.nn.Linear(
-                10,
-                15,
-                paddle.ParamAttr(
-                    initializer=paddle.nn.initializer.Constant(3.)))
+            initializer = paddle.ParamAttr(
+                initializer=paddle.nn.initializer.Constant(3.))
+            linear1 = paddle.nn.Linear(10, 15, initializer)
 
             vec = paddle.nn.utils.parameters_to_vector(linear1.parameters())
+            self.assertEqual(linear1.weight.shape, (10, 15))
+            self.assertEqual(linear1.bias.shape, (15, ))
             self.assertTrue(isinstance(vec, Variable))
             self.assertTrue(vec.shape, [165])
 
             linear2 = paddle.nn.Linear(10, 15)
             paddle.nn.utils.vector_to_parameters(vec, linear2.parameters())
+            self.assertEqual(linear2.weight.shape, (10, 15))
+            self.assertEqual(linear2.bias.shape, (15, ))
 
         exe = paddle.static.Executor()
         exe.run(start_program)
