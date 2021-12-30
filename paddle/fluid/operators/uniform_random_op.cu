@@ -18,7 +18,9 @@ limitations under the License. */
 #include "paddle/fluid/framework/generator.h"
 #include "paddle/fluid/framework/op_registry.h"
 #include "paddle/fluid/framework/operator.h"
+#include "paddle/fluid/operators/distribution_helper.h"
 #include "paddle/fluid/operators/uniform_random_op.h"
+
 namespace paddle {
 namespace operators {
 
@@ -123,7 +125,9 @@ class GPUUniformRandomKernel : public framework::OpKernel<T> {
           "unsupport type: %s.",
           framework::ToTypeName(out_var->Type())));
     }
-    T* data = tensor->mutable_data<T>(context.GetPlace());
+    auto& dev_cxt =
+        context.template device_context<platform::CUDADeviceContext>();
+    T* data = tensor->mutable_data<T>(dev_cxt.GetPlace());
     unsigned int seed = static_cast<unsigned int>(context.Attr<int>("seed"));
     bool seed_flag = false;
     if (seed == 0) {
@@ -145,13 +149,9 @@ class GPUUniformRandomKernel : public framework::OpKernel<T> {
         BOOST_GET_CONST(platform::CUDAPlace, context.GetPlace()).GetDeviceId();
     auto gen_cuda = framework::GetDefaultCUDAGenerator(device_id);
     if (gen_cuda->GetIsInitPy() && seed_flag) {
-      auto seed_offset = gen_cuda->IncrementOffset(1);
-      int64_t gen_offset = size * seed_offset.second;
-      thrust::transform(
-          index_sequence_begin, index_sequence_begin + size,
-          thrust::device_ptr<T>(data),
-          UniformGeneratorOffset<T>(min, max, seed_offset.first, diag_num,
-                                    diag_step, diag_val, gen_offset));
+      distribution::uniform_distribution<T> dist;
+      distribution::uniform_transform<T> trans(min, max);
+      distribution::distribution_and_transform<T>(dev_cxt, tensor, dist, trans);
     } else {
       thrust::transform(
           index_sequence_begin, index_sequence_begin + size,
