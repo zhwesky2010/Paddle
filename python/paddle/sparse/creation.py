@@ -22,10 +22,7 @@ from ..fluid.data_feeder import check_variable_and_dtype, check_type, check_dtyp
 
 import numpy as np
 
-__all__ = [
-    'sparse_coo_tensor',
-    'sparse_csr_tensor',
-]
+__all__ = []
 
 
 def _handle_dtype(data, dtype):

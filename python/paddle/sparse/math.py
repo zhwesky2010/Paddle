@@ -12,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .creation import sparse_coo_tensor  # noqa: F401
-from .creation import sparse_csr_tensor  # noqa: F401
+from paddle.common_ops_import import dygraph_only
+from paddle import _C_ops
 
-from .math import mm  # noqa: F401
+__all__ = []
 
-from .nn.functional import sqrt  # noqa: F401
-from .nn.functional import sin  # noqa: F401
-from .nn.functional import tanh  # noqa: F401
 
-__all__ = [
-    'sparse_coo_tensor',
-    'sparse_csr_tensor',
-    'mm',
-    'sqrt',
-    'sin',
-    'tanh',
-]
+@dygraph_only
+def mm(x, y):
+    '''
+
+    '''
+    return _C_ops.final_state_sparse_mm(x, y)
+
+
+@dygraph_only
+def mm_mask(x, y, mask):
+    '''
+
+    '''
+    return _C_ops.final_state_sparse_mm_mask(x, y)

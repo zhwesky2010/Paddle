@@ -58,19 +58,15 @@ CUSPARSE_ROUTINE_EACH(PLATFORM_DECLARE_DYNAMIC_LOAD_CUSPARSE_WRAP);
   __macro(cusparseDenseToSparse_analysis);   \
   __macro(cusparseDenseToSparse_convert);    \
   __macro(cusparseSparseToDense_bufferSize); \
-  __macro(cusparseSparseToDense);
+  __macro(cusparseSparseToDense);            \
+  __macro(cusparseSDDMM_bufferSize);         \
+  __macro(cusparseSDDMM_preprocess);         \
+  __macro(cusparseSDDMM);                    \
+  __macro(cusparseDnMatSetStridedBatch);     \
+  __macro(cusparseCsrSetStridedBatch);
 
 CUSPARSE_ROUTINE_EACH_11020(PLATFORM_DECLARE_DYNAMIC_LOAD_CUSPARSE_WRAP)
 
-// APIs available after CUDA 11.3
-#if CUDA_VERSION >= 11030
-#define CUSPARSE_ROUTINE_EACH_R2(__macro) \
-  __macro(cusparseSDDMM_bufferSize);      \
-  __macro(cusparseSDDMM_preprocess);      \
-  __macro(cusparseSDDMM);
-
-CUSPARSE_ROUTINE_EACH_R2(PLATFORM_DECLARE_DYNAMIC_LOAD_CUSPARSE_WRAP)
-#endif
 #endif
 #endif
 #endif

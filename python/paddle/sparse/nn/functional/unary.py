@@ -42,7 +42,7 @@ def relu(x, name=None):
             with _test_eager_guard():
                 dense_x = paddle.to_tensor([-2, 0, 1], dtype='float32')
                 sparse_x = dense_x.to_sparse_coo(1)
-                out = paddle.sparse.functional.relu(sparse_x) 
+                out = paddle.sparse.nn.functional.relu(sparse_x) 
     """
 
     assert in_dynamic_mode(), "Currently, Sparse API only support dynamic mode"
@@ -80,7 +80,7 @@ def tanh(x, name=None):
             with _test_eager_guard():
                 dense_x = paddle.to_tensor([-2, 0, 1], dtype='float32')
                 sparse_x = dense_x.to_sparse_coo(1)
-                out = paddle.sparse.tanh(sparse_x)
+                out = paddle.sparse.nn.functional.tanh(sparse_x)
     """
 
     assert in_dynamic_mode(), "Currently, Sparse API only support dynamic mode"
@@ -118,7 +118,7 @@ def sqrt(x, name=None):
             with _test_eager_guard():
                 dense_x = paddle.to_tensor([4, 0, 1], dtype='float32')
                 sparse_x = dense_x.to_sparse_coo(1)
-                out = paddle.sparse.sqrt(sparse_x)
+                out = paddle.sparse.nn.functional.sqrt(sparse_x)
     """
 
     assert in_dynamic_mode(), "Currently, Sparse API only support dynamic mode"
@@ -156,7 +156,7 @@ def sin(x, name=None):
             with _test_eager_guard():
                 dense_x = paddle.to_tensor([-2, 0, 3], dtype='float32')
                 sparse_x = dense_x.to_sparse_coo(1)
-                out = paddle.sparse.sin(sparse_x)
+                out = paddle.sparse.nn.functional.sin(sparse_x)
     """
 
     assert in_dynamic_mode(), "Currently, Sparse API only support dynamic mode"

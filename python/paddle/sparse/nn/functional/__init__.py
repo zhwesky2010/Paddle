@@ -12,20 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .creation import sparse_coo_tensor  # noqa: F401
-from .creation import sparse_csr_tensor  # noqa: F401
-
-from .math import mm  # noqa: F401
-
-from .nn.functional import sqrt  # noqa: F401
-from .nn.functional import sin  # noqa: F401
-from .nn.functional import tanh  # noqa: F401
+from .unary import relu  # noqa: F401
+from .unary import tanh  # noqa: F401
+from .unary import sqrt  # noqa: F401
+from .unary import sin  # noqa: F401
+from .conv import conv3d  # noqa: F401
+from .conv import subm_conv3d  # noqa: F401
+from .pooling import max_pool3d  # noqa: F401
 
 __all__ = [
-    'sparse_coo_tensor',
-    'sparse_csr_tensor',
-    'mm',
+    'relu',
+    'tanh',
+    'conv3d',
+    'subm_conv3d',
+    'max_pool3d',
     'sqrt',
     'sin',
-    'tanh',
+    'attention',
 ]

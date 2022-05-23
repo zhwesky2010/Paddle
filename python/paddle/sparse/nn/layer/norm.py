@@ -100,7 +100,7 @@ class BatchNorm(paddle.nn.BatchNorm1D):
               x_data = paddle.randn((1, 6, 6, 6, channels)).astype('float32')
               dense_x = paddle.to_tensor(x_data) 
               sparse_x = dense_x.to_sparse_coo(4)
-              batch_norm = paddle.sparse.BatchNorm(channels)
+              batch_norm = paddle.sparse.nn.BatchNorm(channels)
               batch_norm_out = batch_norm(sparse_x)
               print(batch_norm_out.shape)
               # [1, 6, 6, 6, 3]
