@@ -316,7 +316,7 @@ class TestSparseConvert(unittest.TestCase):
                     assert np.array_equal(values_sorted,
                                           sparse_x.values().numpy())
 
-    def test_batch_csr(self):
+    def test_3D_csr(self):
         with _test_eager_guard():
 
             def verify(dense_x):
@@ -350,6 +350,34 @@ class TestSparseConvert(unittest.TestCase):
 
             dense_x = paddle.randn(shape)
             #set the 2th batch to zero
+            dense_x[2] = 0
+            verify(dense_x)
+
+    def test_4D_csr(self):
+        with _test_eager_guard():
+
+            def verify(dense_x):
+                sparse_x = dense_x.to_sparse_csr()
+                out = sparse_x.to_dense()
+                assert np.allclose(out.numpy(), dense_x.numpy())
+
+            dense_x = paddle.randn([1, 1, 10, 10])
+            dense_x = paddle.nn.functional.dropout(dense_x, p=0.5)
+            verify(dense_x)
+
+            dense_x = paddle.randn([1, 5, 10, 10])
+            dense_x = paddle.nn.functional.dropout(dense_x, p=0.5)
+            verify(dense_x)
+
+            dense_x = paddle.randn([3, 5, 10, 10])
+            dense_x = paddle.nn.functional.dropout(dense_x, p=0.5)
+            verify(dense_x)
+
+            dense_x = paddle.randn([3, 5, 10, 10])
+            dense_x[1, 2] = 0
+            verify(dense_x)
+
+            dense_x = paddle.randn([3, 5, 10, 10])
             dense_x[2] = 0
             verify(dense_x)
 

@@ -34,9 +34,8 @@ template <typename T, typename Context>
 SparseCooTensor DenseToSparseCoo(const Context& dev_ctx,
                                  const DenseTensor& x,
                                  const int64_t sparse_dim) {
-  DenseTensor indices;
-  DenseTensor values;
-  SparseCooTensor coo(indices, values, x.dims());
+  SparseCooTensor coo;
+  coo.set_dims(x.dims());
   DenseToSparseCooKernel<T, Context>(dev_ctx, x, sparse_dim, &coo);
   return coo;
 }
@@ -49,9 +48,8 @@ void SparseCsrToCooKernel(const Context& dev_ctx,
 template <typename T, typename Context>
 SparseCooTensor SparseCsrToCoo(const Context& dev_ctx,
                                const SparseCsrTensor& x) {
-  DenseTensor indices;
-  DenseTensor values;
-  SparseCooTensor coo(indices, values, x.dims());
+  SparseCooTensor coo;
+  coo.set_dims(x.dims());
   SparseCsrToCooKernel<T, Context>(dev_ctx, x, &coo);
   return coo;
 }
@@ -64,11 +62,8 @@ void SparseCooToCsrKernel(const Context& dev_ctx,
 template <typename T, typename Context>
 SparseCsrTensor SparseCooToCsr(const Context& dev_ctx,
                                const SparseCooTensor& x) {
-  DenseTensor non_zero_crows;
-  DenseTensor non_zero_cols;
-  DenseTensor non_zero_elements;
-  SparseCsrTensor csr(
-      non_zero_crows, non_zero_cols, non_zero_elements, x.dims());
+  SparseCsrTensor csr;
+  csr.set_dims(x.dims());
   SparseCooToCsrKernel<T, Context>(dev_ctx, x, &csr);
   return csr;
 }
@@ -77,27 +72,15 @@ template <typename T, typename Context>
 void DenseToSparseCsrKernel(const Context& dev_ctx,
                             const DenseTensor& x,
                             SparseCsrTensor* out) {
-  const auto& x_dims = x.dims();
-  bool valid = x_dims.size() == 2 || x_dims.size() == 3;
-  PADDLE_ENFORCE_EQ(valid,
-                    true,
-                    phi::errors::InvalidArgument(
-                        "SparseCsrTensor only support 2-D or 3-D Tensor."));
-  const int64_t sparse_dim = x_dims.size() == 2 ? 2 : 3;
-  DenseTensor indices;
-  DenseTensor values;
-  SparseCooTensor coo(indices, values, x.dims());
-  DenseToSparseCooKernel<T, Context>(dev_ctx, x, sparse_dim, &coo);
+  SparseCooTensor coo =
+      DenseToSparseCoo<T, Context>(dev_ctx, x, x.dim().size());
   SparseCooToCsrKernel<T, Context>(dev_ctx, coo, out);
 }
 
 template <typename T, typename Context>
 SparseCsrTensor DenseToSparseCsr(const Context& dev_ctx, const DenseTensor& x) {
-  DenseTensor non_zero_crows;
-  DenseTensor non_zero_cols;
-  DenseTensor non_zero_elements;
-  SparseCsrTensor csr(
-      non_zero_crows, non_zero_cols, non_zero_elements, x.dims());
+  SparseCsrTensor csr;
+  csr.set_dims(x.dims());
   DenseToSparseCsrKernel<T, Context>(dev_ctx, x, &csr);
   return csr;
 }
@@ -119,10 +102,7 @@ template <typename T, typename Context>
 void SparseCsrToDenseKernel(const Context& dev_ctx,
                             const SparseCsrTensor& x,
                             DenseTensor* out) {
-  DenseTensor indices;
-  DenseTensor values;
-  SparseCooTensor coo(indices, values, x.dims());
-  SparseCsrToCooKernel<T, Context>(dev_ctx, x, &coo);
+  SparseCooTensor coo = SparseCsrToCoo<T, Context>(x);
   SparseCooToDenseKernel<T, Context>(dev_ctx, coo, out);
 }
 

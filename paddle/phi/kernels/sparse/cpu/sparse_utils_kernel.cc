@@ -171,50 +171,57 @@ void SparseCooToCsrCPUKernel(const CPUContext& dev_ctx,
                              const SparseCooTensor& x,
                              SparseCsrTensor* out) {
   const auto& x_dims = x.dims();
-  bool valid = x_dims.size() == 2 || x_dims.size() == 3;
-  PADDLE_ENFORCE_EQ(valid,
-                    true,
-                    phi::errors::InvalidArgument(
-                        "SparseCsrTensor only support 2-D or 3-D matrix"));
-  const int64_t non_zero_num = x.nnz();
-  if (non_zero_num <= 0) return;
+  auto x_rank = x_dims.size();
+  PADDLE_ENFORCE_GE(x_dims.size(),
+                    2 phi::errors::InvalidArgument(
+                        "SparseCsrTensor only support 2D or above Tensor"));
+  const int64_t nnz = x.nnz();
+  if (nnz <= 0) return;
 
-  int batchs = x_dims.size() == 2 ? 1 : x_dims[0];
-  int rows = x_dims.size() == 2 ? x_dims[0] : x_dims[1];
+  int batch_size = 1;
+  for (int i = 0; i < x_rank - 2; ++i) {
+    batch_size *= x_dims[i];
+  }
+  int row_num = x_dims[x_rank - 2];
 
-  phi::DenseTensor non_zero_crows;
-  non_zero_crows.Resize({batchs * (rows + 1)});
-  IntT* csr_crows_data = dev_ctx.template Alloc<IntT>(&non_zero_crows);
+  phi::DenseTensor csr_crows;
+  csr_crows.Resize({batch_size * (row_num + 1)});
+  IntT* csr_crows_data = dev_ctx.template Alloc<IntT>(&csr_crows);
 
-  phi::DenseTensor non_zero_cols;
-  non_zero_cols.Resize({non_zero_num});
-  IntT* csr_cols_data = dev_ctx.template Alloc<IntT>(&non_zero_cols);
+  phi::DenseTensor csr_cols;
+  csr_cols.Resize({nnz});
+  IntT* csr_cols_data = dev_ctx.template Alloc<IntT>(&csr_cols);
 
-  phi::DenseTensor non_zero_elements;
-  non_zero_elements.Resize({non_zero_num});
-  T* csr_values_data = dev_ctx.template Alloc<T>(&non_zero_elements);
+  phi::DenseTensor csr_values;
+  csr_values.Resize({nnz});
+  T* csr_values_data = dev_ctx.template Alloc<T>(&csr_values);
 
   const auto& coo_indices = x.non_zero_indices();
   const auto& coo_values = x.non_zero_elements();
-  const IntT* batchs_ptr = coo_indices.data<IntT>();
-  const IntT* coo_rows_data =
-      x_dims.size() == 2 ? batchs_ptr : batchs_ptr + non_zero_num;
-  const IntT* coo_cols_data = coo_rows_data + non_zero_num;
+  const IntT* coo_indices_data = coo_indices.data<IntT>();
   const T* coo_values_data = coo_values.data<T>();
 
-  std::vector<int64_t> offsets(batchs, 0);
-  if (batchs > 1) {
-    for (int i = 0; i < non_zero_num; i++) {
-      if (i == non_zero_num - 1 || batchs_ptr[i] != batchs_ptr[i + 1]) {
+  const IntT* coo_rows_data = coo_indices_data + (x_rank - 2) * nnz;
+  const IntT* coo_cols_data = coo_indices_data + (x_rank - 1) * nnz;
+
+  std::vector<int64_t> offsets(batch_size, 0);
+  if (batch_size > 1) {
+    const IntT* batchs_ptr = coo_indices_data + (x_rank - 3) * nnz;
+    for (int i = 0; i < nnz; i++) {
+      if (batchs_ptr[i] == nnz) {
+        offsets[] = ;
+        break;
+      }
+      if (batchs_ptr[i] != batchs_ptr[i + 1]) {
         const int start = batchs_ptr[i];
-        const int end = i == non_zero_num - 1 ? batchs : batchs_ptr[i + 1];
+        const int end = batchs_ptr[i + 1];
         for (int j = start; j < end; j++) {
           offsets[j] = i + 1;
         }
       }
     }
   } else {
-    offsets[0] = non_zero_num;
+    offsets[0] = nnz;
   }
 
   for (int b = 0; b < batchs; b++) {
