@@ -34,31 +34,22 @@ __global__ void AttnSoftmaxGpuGradKernel(const int64_t* out_crows,
                                          float scale,
                                          int batch_nnz) {
   // dx = (dout - sum(dout * out)) * out
-  int row = blockIdx.x * blockDim.y + threadIdx.y;
-  if (row >= total_row_num) return;
-
-  int cur_batch = row / M;
-  int crow_idx = cur_batch * (M + 1) + (row % M);
+  int cur_batch = blockIdx.x / M;
+  int crow_idx = cur_batch * (M + 1) + (blockIdx.x % M);
   int row_first = cur_batch * batch_nnz + static_cast<int>(out_crows[crow_idx]);
-  int row_nnz = static_cast<int>(out_crows[crow_idx + 1] - out_crows[crow_idx]);
-  if (row_nnz == 0) return;
+  int row_last =
+      cur_batch * batch_nnz + static_cast<int>(out_crows[crow_idx + 1]);
+  if (row_first == row_last) return;
+  int idx = row_first + threadIdx.x;
 
-  int kIteration = (row_nnz + WARP_SIZE - 1) / WARP_SIZE;
-  T mul_result = 0;
-  for (int i = 0; i < kIteration; ++i) {
-    int idx = threadIdx.x + i * WARP_SIZE;
-    if (idx >= row_nnz) break;
-
-    mul_result += out_values[row_first + idx] * dout_values[row_first + idx];
+  T mul = 0;
+  if (idx < row_last) {
+    mul = out_values[idx] * dout_values[idx];
   }
-  T sum = phi::funcs::warpReduceSum<T>(mul_result, 0xFFFFFFFF);
+  T mul_sum = phi::funcs::blockReduceSum<T>(mul, 0xFFFFFFFF);
 
-  for (int i = 0; i < kIteration; ++i) {
-    int idx = threadIdx.x + i * WARP_SIZE;
-    if (idx >= row_nnz) break;
-
-    dx_values[row_first + idx] = (dout_values[row_first + idx] - sum) *
-                                 out_values[row_first + idx] / scale;
+  if (idx < row_last) {
+    dx_values[idx] = (dout_values[idx] - mul_sum) * out_values[idx] / scale;
   }
 }
 
@@ -72,7 +63,7 @@ void FusedAttentionCsrGradKernel(const Context& dev_ctx,
                                  DenseTensor* dquery,
                                  DenseTensor* dkey,
                                  DenseTensor* dvalue) {
-#if CUDA_VERSION >= 11070
+#if CUDA_VERSION >= 11030
   /* Step1: Forward: softmax{CSR} * value{Dense} -> out{Dense}, reuse */
   SparseCsrTensor dsoftmax;
   MatmulCsrDenseGradKernel<T, Context>(
@@ -96,8 +87,9 @@ void FusedAttentionCsrGradKernel(const Context& dev_ctx,
   int N = q_dim[q_rank - 1];
   int batch_nnz = softmax.nnz() / batch_num;
 
-  dim3 grid((total_row_num + 3) / 4);
-  dim3 block(WARP_SIZE, 4);
+  dim3 grid(total_row_num);
+  int block_num = (M + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
+  dim3 block(std::min(block_num, 1024));
 
   AttnSoftmaxGpuGradKernel<T><<<grid, block, 0, dev_ctx.stream()>>>(
       softmax.non_zero_crows().data<int64_t>(),

@@ -37,13 +37,11 @@ namespace sparse {
   [&] {                                                                     \
     const auto& __size__ = SIZE;                                            \
     switch (__size__) {                                                     \
-      PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 1, KBufferSize, __VA_ARGS__)    \
-      PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 2, KBufferSize, __VA_ARGS__)    \
-      PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 3, KBufferSize, __VA_ARGS__)    \
       PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 4, KBufferSize, __VA_ARGS__)    \
       PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 8, KBufferSize, __VA_ARGS__)    \
       PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 12, KBufferSize, __VA_ARGS__)   \
       PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 16, KBufferSize, __VA_ARGS__)   \
+      PRIVATE_CASE_VISIT_ATTN_SOFTMAX(NAME, 24, KBufferSize, __VA_ARGS__)   \
       default:                                                              \
         PD_THROW("function " #NAME " is not implemented for columns>512 "); \
     }                                                                       \
@@ -62,11 +60,8 @@ __global__ void AttnSoftmaxGpuKernel(const int64_t* x_crows,
                                      int num_heads,
                                      int batch_nnz) {
   // out = exp(x-x_max) / sum(exp(x-x_max))
-  int row = blockIdx.x * blockDim.y + threadIdx.y;
-  if (row >= total_row_num) return;
-
-  int cur_batch = row / M;
-  int cur_row = row % M;
+  int cur_batch = blockIdx.x / M;
+  int cur_row = blockIdx.x % M;
   int crow_idx = cur_batch * (M + 1) + cur_row;
   int row_first = cur_batch * batch_nnz + static_cast<int>(x_crows[crow_idx]);
   int row_nnz = static_cast<int>(x_crows[crow_idx + 1] - x_crows[crow_idx]);
@@ -77,12 +72,11 @@ __global__ void AttnSoftmaxGpuKernel(const int64_t* x_crows,
 
   T max_val = -std::numeric_limits<T>::infinity();
   for (int i = 0; i < kIteration; ++i) {
-    bool mask = false;
     int idx = threadIdx.x + i * WARP_SIZE;
     if (idx >= row_nnz) break;
 
+    bool mask = false;
     int col_idx = static_cast<int>(x_cols[row_first + idx]);
-
     if (kp_mask != nullptr &&
         kp_mask[(cur_batch / num_heads) * M + col_idx] == 0) {
       mask = true;
@@ -118,11 +112,59 @@ __global__ void AttnSoftmaxGpuKernel(const int64_t* x_crows,
     int idx = threadIdx.x + i * WARP_SIZE;
     if (idx >= row_nnz) break;
 
-    if (buffer[i]) {
-      out_values[row_first + idx] = buffer[i] / row_exp_sum;
-    } else {
-      out_values[row_first + idx] = static_cast<T>(0);
+    out_values[row_first + idx] = buffer[i] / row_exp_sum;
+  }
+}
+
+template <typename T>
+__global__ void AttnSoftmaxGpuKernelNew(const int64_t* x_crows,
+                                        const int64_t* x_cols,
+                                        const T* x_values,
+                                        const T* kp_mask,
+                                        const T* attn_mask,
+                                        T* out_values,
+                                        int M,
+                                        int total_row_num,
+                                        float scale,
+                                        int num_heads,
+                                        int batch_nnz) {
+  // out = exp(x-x_max) / sum(exp(x-x_max))
+  int cur_batch = blockIdx.x / M;
+  int cur_row = blockIdx.x % M;
+  int crow_idx = cur_batch * (M + 1) + cur_row;
+  int row_first = cur_batch * batch_nnz + static_cast<int>(x_crows[crow_idx]);
+  int row_last =
+      cur_batch * batch_nnz + static_cast<int>(x_crows[crow_idx + 1]);
+  if (row_first == row_last) return;
+  int idx = row_first + threadIdx.x;
+
+  T val = -std::numeric_limits<T>::infinity();
+  bool mask = false;
+  if (idx < row_last) {
+    int col_idx = static_cast<int>(x_cols[idx]);
+    if (kp_mask != nullptr &&
+        kp_mask[(cur_batch / num_heads) * M + col_idx] == 0) {
+      mask = true;
     }
+    if (attn_mask != nullptr && attn_mask[cur_row * M + col_idx] == 0) {
+      mask = true;
+    }
+
+    if (!mask) {
+      val = x_values[idx] / scale;
+    }
+  }
+  T max_val = phi::funcs::blockReduceMax<T>(val, 0xFFFFFFFF);
+
+  T exp = 0;
+  if (!mask && (idx < row_last)) {
+    auto functor = phi::funcs::CudaExpFunctor<T>();
+    exp = functor(val - max_val);
+  }
+  T exp_sum = phi::funcs::blockReduceSum<T>(exp, 0xFFFFFFFF);
+
+  if (idx < row_last) {
+    out_values[idx] = exp / exp_sum;
   }
 }
 
@@ -137,7 +179,7 @@ void FusedAttentionCsrKernel(
     const paddle::optional<DenseTensor>& attn_mask,
     DenseTensor* out,
     SparseCsrTensor* softmax) {
-#if CUDA_VERSION >= 11070
+#if CUDA_VERSION >= 11030
   /* Check Shape */
   auto q_dim = query.dims();
   auto q_rank = q_dim.size();
@@ -219,7 +261,6 @@ void FusedAttentionCsrKernel(
                           "shape of 'attn_mask' must be [seq_len, seq_len]"));
   }
 
-  /* Step1: SDD Matmul, reuse */
   SparseCsrTensor sdd_result;
   EmptyLikeCsrKernel<T, Context>(dev_ctx, sparse_mask, &sdd_result);
   auto sparse_blas = phi::funcs::sparse::GetSparseBlas<Context, T>(dev_ctx);
@@ -231,14 +272,32 @@ void FusedAttentionCsrKernel(
                     static_cast<T>(0),
                     &sdd_result);
 
-  /* Step2: Softmax with kp_mask/attn_mask, manualy not reuse */
   EmptyLikeCsrKernel<T, Context>(dev_ctx, sdd_result, softmax);
 
+#if 0
+  dim3 grid(total_row_num);
+  int block_num = (M + WARP_SIZE - 1) / WARP_SIZE * WARP_SIZE;
+  dim3 block(std::min(block_num, 1024));
+  
+  int batch_nnz = sdd_result.nnz() / batch_num;
+  AttnSoftmaxGpuKernelNew<T><<<grid, block, 0, dev_ctx.stream()>>>(
+      sdd_result.non_zero_crows().data<int64_t>(),
+      sdd_result.non_zero_cols().data<int64_t>(),
+      sdd_result.non_zero_elements().data<T>(),
+      kp_mask_ptr ? kp_mask_ptr->data<T>() : nullptr,
+      attn_mask_ptr ? attn_mask_ptr->data<T>() : nullptr,
+      softmax->mutable_non_zero_elements()->data<T>(),
+      M,
+      total_row_num,
+      std::sqrt(N),
+      q_dim[1],
+      batch_nnz);
+#else
   int buffer_size;
-  if (M < 128) {
-    buffer_size = (M + 32 - 1) / 32;
+  if (M <= 512) {
+    buffer_size = (M + 128 - 1) / 128 * 4;
   } else {
-    buffer_size = ((M + 128 - 1) / 128) * 4;
+    buffer_size = 24;
   }
 
   dim3 grid((total_row_num + 3) / 4);
@@ -260,10 +319,13 @@ void FusedAttentionCsrKernel(
         q_dim[1],
         batch_nnz);
   });
+#endif
 
-  /* Step3: DSD Matmul, reuse */
+  // sdd_result.set_dims(phi::make_ddim({q_dim[0], q_dim[1], q_dim[2],
+  // q_dim[2]}));
   softmax->set_dims(phi::make_ddim({q_dim[0], q_dim[1], q_dim[2], q_dim[2]}));
   MatmulCsrDenseKernel<T, Context>(dev_ctx, *softmax, value, out);
+
 #else
   PADDLE_THROW(
       phi::errors::Unimplemented("forward of 'sparse.nn.functional.attention' "
