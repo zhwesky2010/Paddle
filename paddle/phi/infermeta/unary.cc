@@ -3713,7 +3713,7 @@ void TileInferMeta(const MetaTensor& x,
           repeat_times_data.size()));
   PADDLE_ENFORCE_GE(
       repeat_times_data.size(),
-      1,
+      0,
       errors::InvalidArgument(
           "The size of the shape of input 'repeat_times' for tile op "
           "must be positive integers, but the value received is %d.",

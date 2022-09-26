@@ -50,6 +50,30 @@ class TestReshapeOp(OpTest):
         self.check_grad(["X"], "Out")
 
 
+class TestReshapeOpZeroDim1(OpTest):
+
+    def init_data(self):
+        self.ori_shape = ()
+        self.new_shape = (1)
+        self.infered_shape = (1)
+
+
+class TestReshapeOpZeroDim2(OpTest):
+
+    def init_data(self):
+        self.ori_shape = (1)
+        self.new_shape = ()
+        self.infered_shape = ()
+
+
+class TestReshapeOpZeroDim3(OpTest):
+
+    def init_data(self):
+        self.ori_shape = ()
+        self.new_shape = (-1)
+        self.infered_shape = (1)
+
+
 class TestReshapeBF16Op(OpTest):
 
     def setUp(self):
@@ -528,6 +552,93 @@ class TestReshapeZeroTensor(unittest.TestCase):
         zero_tensor = paddle.zeros([0, 2, 3])
         with self.assertRaises(ValueError):
             zero_tensor.reshape([2, 3])
+
+
+class TestReshapeAPI_ZeroDim(unittest.TestCase):
+
+    def test_dygraph(self):
+        paddle.disable_static()
+        fluid.set_flags({"FLAGS_retain_grad_for_all_tensor": True})
+        x = paddle.rand([])
+        x.stop_gradient = False
+
+        out = paddle.reshape(x, [1])
+        out.backward()
+        self.assertEqual(out.shape, [1])
+        self.assertEqual(x.grad.shape, [])
+        self.assertEqual(out.grad.shape, [1])
+
+        out = paddle.reshape(x, [-1, 1])
+        out.backward()
+        self.assertEqual(out.shape, [1, 1])
+        self.assertEqual(x.grad.shape, [])
+        self.assertEqual(out.grad.shape, [1, 1])
+
+        paddle.enable_static()
+
+    def test_static(self):
+        main_prog = fluid.Program()
+        with fluid.program_guard(main_prog, fluid.Program()):
+            x = paddle.rand([])
+            x.stop_gradient = False
+            out = paddle.reshape(x, [-1])
+            fluid.backward.append_backward(out)
+
+            prog = paddle.static.default_main_program()
+            block = prog.global_block()
+
+            x_grad = block.var(fluid.framework.grad_var_name(x.name))
+            out_grad = block.var(fluid.framework.grad_var_name(out.name))
+
+            # Test compile shape
+            self.assertEqual(x.shape, ())
+            self.assertEqual(out.shape, (1, ))
+            self.assertEqual(x_grad.shape, ())
+            self.assertEqual(out_grad.shape, (1, ))
+
+            exe = fluid.Executor()
+            result = exe.run(main_prog, fetch_list=[x, out, x_grad, out_grad])
+
+            # Test runtime shape
+            self.assertEqual(result[0].shape, ())
+            self.assertEqual(result[1].shape, (1, ))
+            self.assertEqual(result[2].shape, ())
+            self.assertEqual(result[3].shape, (1, ))
+
+            if paddle.device.is_compiled_with_cuda():
+                places = [paddle.CUDAPlace(0)]
+                device_num = 1
+                expect_merge_shape = ()
+            else:
+                places = [paddle.CPUPlace()] * 4
+                device_num = 4
+                expect_merge_shape = (device_num, )
+
+            compiled_program = fluid.CompiledProgram(
+                main_prog).with_data_parallel(out.name, places=places)
+            result = exe.run(compiled_program,
+                             fetch_list=[x, x_grad, out, out_grad],
+                             return_merged=True)
+
+            # Test runtime parallel shape
+            # 0D will be stacked, due to it cannot be concated
+            # [ x-place1 .concat(stack) x-place2, ...]
+            self.assertEqual(result[0].shape, expect_merge_shape)
+            self.assertEqual(result[1].shape, expect_merge_shape)
+            self.assertEqual(result[2].shape, (device_num, ))
+            self.assertEqual(result[3].shape, (device_num, ))
+
+            compiled_program = fluid.CompiledProgram(
+                main_prog).with_data_parallel(out.name, places=places)
+            result = exe.run(compiled_program,
+                             fetch_list=[x, x_grad, out, out_grad],
+                             return_merged=False)
+
+            # [[x-place1, x-place2, ...], [], [], ...]
+            self.assertEqual(np.array(result[0]).shape, (device_num, ))
+            self.assertEqual(np.array(result[1]).shape, (device_num, ))
+            self.assertEqual(np.array(result[2]).shape, (device_num, 1))
+            self.assertEqual(np.array(result[3]).shape, (device_num, 1))
 
 
 if __name__ == "__main__":
