@@ -24,8 +24,7 @@ import paddle.fluid as fluid
 from paddle.fluid.layer_helper import LayerHelper
 from functools import reduce
 from paddle.fluid.framework import _test_eager_guard, _in_legacy_dygraph
-
-
+'''
 class TestSetValueBase(unittest.TestCase):
 
     def setUp(self):
@@ -1103,6 +1102,7 @@ class TestBackward(unittest.TestCase):
             self.func_test_dynamic()
         self.func_test_dynamic()
         fluid.set_flags({"FLAGS_retain_grad_for_all_tensor": False})
+'''
 
 
 class TestGradientTruncated(unittest.TestCase):
@@ -1423,7 +1423,6 @@ class TestGradientTruncated(unittest.TestCase):
             # When `input.stop_gradient = True` and `value.stop_gradient = False`,
             # set_value_grad_op will not be run during backward.
             y, value = op(x)
-
             y2 = y + 1
             loss = paddle.fluid.layers.reduce_sum(y2)
             sgd = paddle.optimizer.Adam()
