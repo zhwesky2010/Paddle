@@ -49,6 +49,39 @@ class TestElementwiseOp(OpTest):
                         no_grad_set=set('Y'))
 
 
+class TestElementwiseSubOp_ZeroDim1(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_sub"
+        self.inputs = {
+            'X': np.random.uniform(0.1, 1, []).astype("float64"),
+            'Y': np.random.uniform(0.1, 1, []).astype("float64")
+        }
+        self.outputs = {'Out': self.inputs['X'] - self.inputs['Y']}
+
+
+class TestElementwiseSubOp_ZeroDim2(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_sub"
+        self.inputs = {
+            'X': np.random.uniform(0.1, 1, [2, 3, 4, 5]).astype("float64"),
+            'Y': np.random.uniform(0.1, 1, []).astype("float64")
+        }
+        self.outputs = {'Out': self.inputs['X'] - self.inputs['Y']}
+
+
+class TestElementwiseSubOp_ZeroDim3(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_sub"
+        self.inputs = {
+            'X': np.random.uniform(0.1, 1, []).astype("float64"),
+            'Y': np.random.uniform(0.1, 1, [2, 3, 4, 5]).astype("float64")
+        }
+        self.outputs = {'Out': self.inputs['X'] - self.inputs['Y']}
+
+
 class TestBF16ElementwiseOp(OpTest):
 
     def setUp(self):

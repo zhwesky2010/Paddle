@@ -61,6 +61,40 @@ class TestElementwiseOp(OpTest):
                         no_grad_set=set('Y'))
 
 
+class TestElementwiseMinOp_ZeroDim1(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_min"
+        self.python_api = paddle.minimum
+        x = np.random.uniform(0.1, 1, []).astype("float64")
+        sgn = np.random.choice([-1, 1], []).astype("float64")
+        y = x + sgn * np.random.uniform(0.1, 1, []).astype("float64")
+        self.inputs = {'X': x, 'Y': y}
+        self.outputs = {'Out': np.minimum(self.inputs['X'], self.inputs['Y'])}
+
+
+class TestElementwiseMinOp_ZeroDim2(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_min"
+        self.python_api = paddle.minimum
+        x = np.random.uniform(0.1, 1, [13, 17]).astype("float64")
+        y = np.random.uniform(0.1, 1, []).astype("float64")
+        self.inputs = {'X': x, 'Y': y}
+        self.outputs = {'Out': np.minimum(self.inputs['X'], self.inputs['Y'])}
+
+
+class TestElementwiseMinOp_ZeroDim3(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_min"
+        self.python_api = paddle.minimum
+        x = np.random.uniform(0.1, 1, []).astype("float64")
+        y = np.random.uniform(0.1, 1, [13, 17]).astype("float64")
+        self.inputs = {'X': x, 'Y': y}
+        self.outputs = {'Out': np.minimum(self.inputs['X'], self.inputs['Y'])}
+
+
 @skip_check_grad_ci(
     reason="[skip shape check] Use y_shape(1) to test broadcast.")
 class TestElementwiseMinOp_scalar(TestElementwiseOp):

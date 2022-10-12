@@ -58,6 +58,40 @@ class TestElementwiseOp(OpTest):
                         no_grad_set=set('Y'))
 
 
+class TestElementwiseMaxOp_ZeroDim1(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_max"
+        self.python_api = paddle.maximum
+        x = np.random.uniform(0.1, 1, []).astype("float64")
+        sgn = np.random.choice([-1, 1], []).astype("float64")
+        y = x + sgn * np.random.uniform(0.1, 1, []).astype("float64")
+        self.inputs = {'X': x, 'Y': y}
+        self.outputs = {'Out': np.maximum(self.inputs['X'], self.inputs['Y'])}
+
+
+class TestElementwiseMaxOp_ZeroDim2(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_max"
+        self.python_api = paddle.maximum
+        x = np.random.uniform(0.1, 1, [13, 17]).astype("float64")
+        y = np.random.uniform(0.1, 1, []).astype("float64")
+        self.inputs = {'X': x, 'Y': y}
+        self.outputs = {'Out': np.maximum(self.inputs['X'], self.inputs['Y'])}
+
+
+class TestElementwiseMaxOp_ZeroDim3(TestElementwiseOp):
+
+    def setUp(self):
+        self.op_type = "elementwise_max"
+        self.python_api = paddle.maximum
+        x = np.random.uniform(0.1, 1, []).astype("float64")
+        y = np.random.uniform(0.1, 1, [13, 17]).astype("float64")
+        self.inputs = {'X': x, 'Y': y}
+        self.outputs = {'Out': np.maximum(self.inputs['X'], self.inputs['Y'])}
+
+
 @unittest.skipIf(core.is_compiled_with_cuda() and (
     core.cudnn_version() < 8100
     or paddle.device.cuda.get_device_capability()[0] < 8

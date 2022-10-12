@@ -89,6 +89,18 @@ TEST_META_SHAPE_DATA = {
     'EqualDim2': {
         'x_shape': [1, 1, 4, 5],
         'y_shape': [2, 3, 1, 5]
+    },
+    'ZeroDim1': {
+        'x_shape': [],
+        'y_shape': []
+    },
+    'ZeroDim2': {
+        'x_shape': [2, 3, 4, 5],
+        'y_shape': []
+    },
+    'ZeroDim3': {
+        'x_shape': [],
+        'y_shape': [2, 3, 4, 5]
     }
 }
 

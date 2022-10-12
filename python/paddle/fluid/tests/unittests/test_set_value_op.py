@@ -23,6 +23,7 @@ from paddle.fluid.layer_helper import LayerHelper
 from functools import reduce
 from paddle.fluid.framework import _test_eager_guard
 
+
 class TestSetValueBase(unittest.TestCase):
 
     def setUp(self):

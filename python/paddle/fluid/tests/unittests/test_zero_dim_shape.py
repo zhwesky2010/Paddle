@@ -66,7 +66,7 @@ unary_api_list = [
 ]
 
 
-# Use to test zero-dim in the whole API
+# Use to test zero-dim shape in the unary API
 class TestUnaryAPI(unittest.TestCase):
 
     def test_dygraph_unary(self):
@@ -149,6 +149,132 @@ class TestUnaryAPI(unittest.TestCase):
                 self.assertEqual(np.array(result[0]).shape, (device_num, ))
                 self.assertEqual(np.array(result[1]).shape, (device_num, ))
                 self.assertEqual(np.array(result[3]).shape, (device_num, 1))
+
+        paddle.disable_static()
+
+
+binary_api_list = [
+    paddle.add,
+    paddle.subtract,
+    paddle.multiply,
+    paddle.divide,
+    paddle.floor_divide,
+    paddle.pow,
+    paddle.floor_mod,
+    paddle.mod,
+    paddle.remainder,
+    paddle.equal,
+    paddle.not_equal,
+    paddle.greater_equal,
+    paddle.greater_than,
+    paddle.less_equal,
+    paddle.less_than,
+    paddle.bitwise_and,
+    paddle.bitwise_or,
+    paddle.bitwise_xor,
+    paddle.bitwise_not,
+    paddle.logical_and,
+    paddle.logical_or,
+    paddle.logical_xor,
+    paddle.logical_not,
+]
+
+
+# Use to test zero-dim shape in the binary API
+class TestBinaryAPI(unittest.TestCase):
+
+    def test_dygraph_binary(self):
+        paddle.disable_static()
+        fluid.set_flags({"FLAGS_retain_grad_for_all_tensor": True})
+        for api in binary_api_list:
+            # 1) x/y is 0D
+            x = paddle.rand([])
+            y = paddle.rand([])
+            x.stop_gradient = False
+            y.stop_gradient = False
+            out = api(x, y)
+            out.backward()
+
+            self.assertEqual(x.shape, [])
+            self.assertEqual(y.shape, [])
+            self.assertEqual(out.shape, [])
+            self.assertEqual(x.grad.shape, [])
+            self.assertEqual(y.grad.shape, [])
+            self.assertEqual(out.grad.shape, [])
+
+            # 2) x is not 0D , y is 0D
+            x = paddle.rand([2, 3, 4])
+            y = paddle.rand([])
+            x.stop_gradient = False
+            y.stop_gradient = False
+            out = api(x, y)
+            out.backward()
+
+            self.assertEqual(x.shape, [2, 3, 4])
+            self.assertEqual(y.shape, [])
+            self.assertEqual(out.shape, [2, 3, 4])
+            self.assertEqual(x.grad.shape, [2, 3, 4])
+            self.assertEqual(y.grad.shape, [])
+            self.assertEqual(out.grad.shape, [2, 3, 4])
+
+            # 3) x is 0D , y is not 0D
+            x = paddle.rand([])
+            y = paddle.rand([2, 3, 4])
+            x.stop_gradient = False
+            y.stop_gradient = False
+            out = api(x, y)
+            out.backward()
+
+            self.assertEqual(x.shape, [])
+            self.assertEqual(y.shape, [2, 3, 4])
+            self.assertEqual(out.shape, [2, 3, 4])
+
+            self.assertEqual(x.grad.shape, [])
+            self.assertEqual(y.grad.shape, [2, 3, 4])
+            self.assertEqual(out.grad.shape, [2, 3, 4])
+
+        paddle.enable_static()
+
+    def test_static_unary(self):
+        paddle.enable_static()
+
+        for api in binary_api_list:
+            main_prog = fluid.Program()
+            with fluid.program_guard(main_prog, fluid.Program()):
+                x = paddle.rand([])
+                y = paddle.rand([])
+                x.stop_gradient = False
+                y.stop_gradient = False
+                out = api(x)
+                fluid.backward.append_backward(out)
+
+                # ScaleLossGradOp / append_backward always set grad shape to [1]
+                prog = paddle.static.default_main_program()
+                block = prog.global_block()
+
+                x_grad = block.var(fluid.framework.grad_var_name(x.name))
+                y_grad = block.var(fluid.framework.grad_var_name(y.name))
+                out_grad = block.var(fluid.framework.grad_var_name(out.name))
+
+                # Test compile shape, grad is always [1]
+                self.assertEqual(x.shape, ())
+                self.assertEqual(y.shape, ())
+                self.assertEqual(out.shape, ())
+                self.assertEqual(x_grad.shape, (1, ))
+                self.assertEqual(y_grad.shape, (1, ))
+                self.assertEqual(out_grad.shape, (1, ))
+
+                exe = fluid.Executor()
+                result = exe.run(
+                    main_prog, fetch_list=[x, y, out, x_grad, y_grad, out_grad])
+
+                # Test runtime shape, grad is always [1]
+                self.assertEqual(result[0].shape, ())
+                self.assertEqual(result[1].shape, ())
+                self.assertEqual(result[2].shape, ())
+                self.assertEqual(result[3].shape, ())
+                self.assertEqual(result[4].shape, ())
+                self.assertEqual(result[5].shape, ())
 
         paddle.disable_static()
 

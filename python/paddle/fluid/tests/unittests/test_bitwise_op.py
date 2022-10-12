@@ -60,6 +60,27 @@ class TestBitwiseAnd(OpTest):
         self.high = 100
 
 
+class TestBitwiseAnd_ZeroDim1(TestBitwiseAnd):
+
+    def init_shape(self):
+        self.x_shape = []
+        self.y_shape = []
+
+
+class TestBitwiseAnd_ZeroDim2(TestBitwiseAnd):
+
+    def init_shape(self):
+        self.x_shape = [2, 3, 4, 5]
+        self.y_shape = []
+
+
+class TestBitwiseAnd_ZeroDim3(TestBitwiseAnd):
+
+    def init_shape(self):
+        self.x_shape = []
+        self.y_shape = [2, 3, 4, 5]
+
+
 class TestBitwiseAndUInt8(TestBitwiseAnd):
 
     def init_dtype(self):
@@ -152,6 +173,27 @@ class TestBitwiseOr(OpTest):
     def init_bound(self):
         self.low = -100
         self.high = 100
+
+
+class TestBitwiseOr_ZeroDim1(TestBitwiseOr):
+
+    def init_shape(self):
+        self.x_shape = []
+        self.y_shape = []
+
+
+class TestBitwiseOr_ZeroDim2(TestBitwiseOr):
+
+    def init_shape(self):
+        self.x_shape = [2, 3, 4, 5]
+        self.y_shape = []
+
+
+class TestBitwiseOr_ZeroDim3(TestBitwiseOr):
+
+    def init_shape(self):
+        self.x_shape = []
+        self.y_shape = [2, 3, 4, 5]
 
 
 class TestBitwiseOrUInt8(TestBitwiseOr):
@@ -248,6 +290,27 @@ class TestBitwiseXor(OpTest):
         self.high = 100
 
 
+class TestBitwiseXor_ZeroDim1(TestBitwiseXor):
+
+    def init_shape(self):
+        self.x_shape = []
+        self.y_shape = []
+
+
+class TestBitwiseXor_ZeroDim2(TestBitwiseXor):
+
+    def init_shape(self):
+        self.x_shape = [2, 3, 4, 5]
+        self.y_shape = []
+
+
+class TestBitwiseXor_ZeroDim3(TestBitwiseXor):
+
+    def init_shape(self):
+        self.x_shape = []
+        self.y_shape = [2, 3, 4, 5]
+
+
 class TestBitwiseXorUInt8(TestBitwiseXor):
 
     def init_dtype(self):
@@ -337,6 +400,12 @@ class TestBitwiseNot(OpTest):
         self.high = 100
 
 
+class TestBitwiseNot_ZeroDim(TestBitwiseXor):
+
+    def init_shape(self):
+        self.x_shape = []
+
+
 class TestBitwiseNotUInt8(TestBitwiseNot):
 
     def init_dtype(self):
@@ -363,7 +432,6 @@ class TestBitwiseNotInt16(TestBitwiseNot):
 
     def init_shape(self):
         self.x_shape = [2, 3, 4, 5]
-        self.y_shape = [4, 1]
 
 
 class TestBitwiseNotInt64(TestBitwiseNot):
